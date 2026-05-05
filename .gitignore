@@ -1,0 +1,13 @@
+# Godot 4+
+.import/
+.godot/
+# macOS
+.DS_Store
+# Editor / IDE
+.vscode/
+.idea/
+# Logs / temp
+*.log
+# Env / secrets
+.env
+.env.*
