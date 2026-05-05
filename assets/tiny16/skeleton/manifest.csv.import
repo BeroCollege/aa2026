@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://fxaded5u5s6i"
+
+[deps]
+
+files=["res://assets/tiny16/skeleton/manifest.row.translation", "res://assets/tiny16/skeleton/manifest.col.translation"]
+
+source_file="res://assets/tiny16/skeleton/manifest.csv"
+dest_files=["res://assets/tiny16/skeleton/manifest.row.translation", "res://assets/tiny16/skeleton/manifest.col.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

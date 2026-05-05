@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://drxm3b0xpr6q0"]
+
+[ext_resource type="Script" path="res://scripts/crop_node.gd" id="1_lbbn7"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/tile_grass.png" id="2_8hfu2"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8w5ah"]
+size = Vector2(48, 48)
+
+[node name="CropNode" type="Area2D"]
+script = ExtResource("1_lbbn7")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_8w5ah")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_8hfu2")
+scale = Vector2(1, 1)

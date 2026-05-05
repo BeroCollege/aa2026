@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://be0coharg8c7a"]
+
+[ext_resource type="Script" path="res://scripts/hazard_zone.gd" id="1_4i1c7"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/tile_lava_hazard.png" id="2_0w3wr"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_riq1r"]
+radius = 46.0
+
+[node name="HazardZone" type="Area2D"]
+script = ExtResource("1_4i1c7")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_riq1r")
+
+[node name="LavaVisual" type="Sprite2D" parent="."]
+texture = ExtResource("2_0w3wr")
+scale = Vector2(1.5, 1.5)
+modulate = Color(1, 1, 1, 0.85)

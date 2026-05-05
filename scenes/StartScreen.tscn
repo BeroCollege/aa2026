@@ -1,0 +1,114 @@
+[gd_scene format=3 uid="uid://dfg40rxcd6nsu"]
+
+[ext_resource type="Script" path="res://scripts/start_screen.gd" id="1_script"]
+
+[node name="StartScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.22, 0.42, 0.62, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Layout" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(440, 0)
+theme_override_constants/separation = 20
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Center/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 44
+theme_override_colors/font_color = Color(0.98, 0.95, 0.88, 1)
+theme_override_colors/font_outline_color = Color(0.1, 0.12, 0.2, 1)
+theme_override_constants/outline_size = 5
+text = "BOB Attack"
+horizontal_alignment = 1
+
+[node name="Buttons" type="VBoxContainer" parent="Center/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BtnStart" type="Button" parent="Center/Layout/Buttons"]
+custom_minimum_size = Vector2(280, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Start"
+
+[node name="BtnBest" type="Button" parent="Center/Layout/Buttons"]
+custom_minimum_size = Vector2(280, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Best run"
+
+[node name="BtnKeys" type="Button" parent="Center/Layout/Buttons"]
+custom_minimum_size = Vector2(280, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Keybinds"
+
+[node name="Dialog" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -340.0
+offset_top = -220.0
+offset_right = 340.0
+offset_bottom = 220.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Dialog"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Dialog/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="DialogTitle" type="Label" parent="Dialog/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Title"
+
+[node name="DialogBody" type="Label" parent="Dialog/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
+autowrap_mode = 3
+text = ""
+
+[node name="DialogBack" type="Button" parent="Dialog/Margin/VBox"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+text = "Back"

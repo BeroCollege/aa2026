@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://co4do6houf14c"]
+
+[ext_resource type="Script" path="res://scripts/door.gd" id="1_2ha6a"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/door_closed.png" id="2_7fo6g"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_6f6jg"]
+size = Vector2(30, 50)
+
+[node name="Door" type="Area2D"]
+script = ExtResource("1_2ha6a")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_6f6jg")
+
+[node name="Panel" type="Sprite2D" parent="."]
+texture = ExtResource("2_7fo6g")
+position = Vector2(0, -8)
+scale = Vector2(0.8, 0.8)

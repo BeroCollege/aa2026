@@ -1,0 +1,850 @@
+extends CharacterBody2D
+
+enum BobMode {
+	FRIENDLY,
+	ATTACK
+}
+
+@export var move_speed: float = 180.0
+@export var forage_distance: float = 260.0
+@export var surface_foot_offset: float = 30.0
+@export var gravity_force: float = 1550.0
+@export var jump_velocity: float = -495.0
+@export var max_fall_speed: float = 980.0
+@export var collider_half_width: float = 14.0
+@export var collider_head_offset: float = -80.0
+@export var body_visual_scale: float = 6.0
+@export var body_width_scale: float = 0.82
+@export var mine_reach_cells_x: int = 1
+@export var mine_reach_cells_up: int = 2
+@export var mine_reach_cells_down: int = 1
+@export var mine_action_cooldown: float = 0.22
+@export var forage_mine_interval: float = 1.05
+@export var escape_mine_reach_cells_x: int = 2
+@export var escape_mine_reach_cells_up: int = 3
+@export var friendly_mode_min_seconds: float = 5.0
+@export var friendly_mode_max_seconds: float = 12.0
+@export var attack_mode_min_seconds: float = 4.5
+@export var attack_mode_max_seconds: float = 10.0
+
+@export var berry_seek_hunger_below: float = 62.0
+@export var berry_seek_max_distance: float = 520.0
+@export var berry_gather_distance: float = 54.0
+@export var berry_gather_cooldown: float = 0.95
+@export var berry_seek_speed_multiplier: float = 1.85
+@export var berry_seek_speed_override: float = 0.0
+
+@export var max_health: float = 2000.0
+@export var health: float = 2000.0
+@export var hunger: float = 80.0
+@export var safety: float = 100.0
+@export var curiosity: float = 40.0
+@export var energy: float = 85.0
+@export var trust_to_player: float = 50.0
+@export var affection: float = 35.0
+
+var _mode: BobMode = BobMode.FRIENDLY
+var _mode_timer: float = 0.0
+var _player: Node2D
+var _manager
+var _forage_target: Vector2
+var _rng := RandomNumberGenerator.new()
+var _action_text: String = "shadowing player..."
+var _time_alive: float = 0.0
+var _world_tiles: TileMapLayer
+var _vertical_velocity: float = 0.0
+var _is_grounded: bool = false
+var _last_annoy_tick: float = 0.0
+var _mine_cooldown_timer: float = 0.0
+var _forage_mine_timer: float = 0.0
+var _intended_move_x: float = 0.0
+var _stuck_move_timer: float = 0.0
+var _escape_mine_chain: int = 0
+var _shove_player_timer: float = 0.0
+var _sword_scare_cd: float = 0.0
+var _calm_aura_count: int = 0
+var _berry_gather_cd: float = 0.0
+
+func _ready() -> void:
+	add_to_group("bob_agent")
+	_rng.randomize()
+	_player = get_tree().get_first_node_in_group("player") as Node2D
+	_manager = get_tree().get_first_node_in_group("game_manager")
+	_world_tiles = get_tree().current_scene.get_node("WorldTiles") as TileMapLayer
+	health = clampf(health, 0.0, max_health)
+	_pick_new_forage_target()
+	_roll_mode_timer()
+
+func _process(delta: float) -> void:
+	if not _player:
+		_player = get_tree().get_first_node_in_group("player") as Node2D
+		if not _player:
+			return
+	_mode_timer = maxf(0.0, _mode_timer - delta)
+	_last_annoy_tick = maxf(0.0, _last_annoy_tick - delta)
+	_mine_cooldown_timer = maxf(0.0, _mine_cooldown_timer - delta)
+	_forage_mine_timer = maxf(0.0, _forage_mine_timer - delta)
+	_sword_scare_cd = maxf(0.0, _sword_scare_cd - delta)
+	_update_needs(delta)
+	_select_mode(delta)
+
+func _physics_process(_delta: float) -> void:
+	_time_alive += _delta
+	_berry_gather_cd = maxf(0.0, _berry_gather_cd - _delta)
+	var desired_velocity := Vector2.ZERO
+	var berry_vel: Variant = _try_berry_food_steering()
+	if berry_vel != null:
+		desired_velocity = berry_vel as Vector2
+	else:
+		match _mode:
+			BobMode.FRIENDLY:
+				desired_velocity = _move_toward_forage()
+				_action_text = "friendly wandering..."
+				_try_forage_mine()
+			BobMode.ATTACK:
+				desired_velocity = _move_toward_player(false)
+				_action_text = "attack mode: annoying player"
+				if _manager and _manager.can_bob_sabotage() and global_position.distance_to(_player.global_position) < 60.0:
+					var stolen: int = _manager.bob_sabotage()
+					if stolen > 0:
+						hunger = minf(100.0, hunger + float(stolen) * 8.0)
+						curiosity = maxf(0.0, curiosity - 10.0)
+						_action_text = "snatched supplies from you!"
+				_try_sabotage_world()
+				_try_bite_player(_delta)
+				_try_annoy_player(_delta)
+				_try_shove_player(_delta)
+
+	_shove_player_timer = maxf(0.0, _shove_player_timer - _delta)
+	_intended_move_x = desired_velocity.x
+	var before_x := global_position.x
+	_move_character(desired_velocity.x, _delta)
+	var moved_x := absf(global_position.x - before_x)
+	if absf(_intended_move_x) > 8.0 and moved_x < 0.35:
+		_stuck_move_timer += _delta
+	else:
+		_stuck_move_timer = maxf(0.0, _stuck_move_timer - _delta * 2.0)
+	_try_mine_escape()
+	_update_visuals()
+
+func get_status_text() -> String:
+	return "B.O.B | Hunger: %.0f  Safety: %.0f  Curiosity: %.0f  Mode: %s  Action: %s" % [
+		hunger,
+		safety,
+		curiosity,
+		_mode_to_string(_mode),
+		_action_text
+	]
+
+func _update_needs(delta: float) -> void:
+	# Hunger no longer passively decays over time; feeding / forage / bites still change it.
+	curiosity = minf(100.0, curiosity + 4.2 * delta)
+	energy = maxf(0.0, energy - (0.9 + velocity.length() * 0.0025) * delta)
+	trust_to_player = move_toward(trust_to_player, 48.0, 0.9 * delta)
+
+	# At night B.O.B. feels less safe and seeks caution.
+	if _manager and _manager.is_night:
+		safety = maxf(0.0, safety - 6.5 * delta)
+	else:
+		safety = minf(100.0, safety + 3.2 * delta)
+	if energy < 30.0:
+		safety = maxf(0.0, safety - 1.2 * delta)
+
+	# If hunger gets critical, safety drops due to risky behavior.
+	if hunger < 20.0:
+		safety = maxf(0.0, safety - 3.0 * delta)
+		trust_to_player = maxf(0.0, trust_to_player - 1.8 * delta)
+	if hunger < 30.0:
+		_action_text = "hungry... seeking food or player bites"
+
+	# Social bonding while in friendly mode.
+	if _player and _mode == BobMode.FRIENDLY:
+		var near_player := global_position.distance_to(_player.global_position) < 120.0
+		if near_player:
+			affection = minf(100.0, affection + 2.8 * delta)
+			trust_to_player = minf(100.0, trust_to_player + 1.6 * delta)
+		else:
+			affection = maxf(0.0, affection - 0.55 * delta)
+
+	# Slow energy recovery while calm.
+	if _mode == BobMode.FRIENDLY and velocity.length() < 5.0:
+		energy = minf(100.0, energy + 5.4 * delta)
+
+func _select_mode(delta: float) -> void:
+	if not _player:
+		return
+
+	# Calm Totem aura forces friendly mode for as long as B.O.B. is inside it.
+	if _calm_aura_count > 0:
+		if _mode != BobMode.FRIENDLY:
+			_mode = BobMode.FRIENDLY
+			_action_text = "soothed by Calm Totem..."
+		_mode_timer = maxf(_mode_timer, 1.5)
+		return
+
+	var player_distance := global_position.distance_to(_player.global_position)
+	var player_wields_sword := _player.has_method("get_selected_tool") and str(_player.get_selected_tool()) == "sword"
+
+	if player_wields_sword and player_distance < 165.0 and _mode == BobMode.ATTACK and _sword_scare_cd <= 0.0:
+		_sword_scare_cd = 2.2
+		_mode = BobMode.FRIENDLY
+		_roll_mode_timer()
+		_action_text = "respecting the blade..."
+		return
+
+	if _mode_timer > 0.0:
+		return
+
+	var bias_to_attack := 0.5
+	# Early-game grace: stay friendly for ~30s so the player can ramp up tools.
+	if _time_alive < 30.0:
+		bias_to_attack -= 0.35
+	elif _time_alive < 60.0:
+		bias_to_attack -= 0.12
+	if hunger < 55.0:
+		bias_to_attack += 0.15
+	if trust_to_player < 40.0:
+		bias_to_attack += 0.15
+	if energy < 25.0:
+		bias_to_attack -= 0.25
+	if player_wields_sword and player_distance < 130.0:
+		bias_to_attack -= 0.2
+	bias_to_attack = clampf(bias_to_attack + _rng.randf_range(-0.18, 0.18), 0.05, 0.9)
+
+	_mode = BobMode.ATTACK if _rng.randf() < bias_to_attack else BobMode.FRIENDLY
+	_roll_mode_timer()
+
+func set_calm_aura_active(active: bool) -> void:
+	if active:
+		_calm_aura_count += 1
+		_mode = BobMode.FRIENDLY
+		_roll_mode_timer()
+	else:
+		_calm_aura_count = maxi(0, _calm_aura_count - 1)
+
+func _roll_mode_timer() -> void:
+	if _mode == BobMode.FRIENDLY:
+		_mode_timer = _rng.randf_range(friendly_mode_min_seconds, friendly_mode_max_seconds)
+	else:
+		_mode_timer = _rng.randf_range(attack_mode_min_seconds, attack_mode_max_seconds)
+
+func _move_toward_player(stop_at_distance: bool) -> Vector2:
+	if not _player:
+		return Vector2.ZERO
+	var target := _player.global_position
+	# Cut off escape routes: lead slightly in the direction the player is moving.
+	if not stop_at_distance and _player.has_method("get_last_move_x"):
+		var lx: float = float(_player.get_last_move_x())
+		target.x += lx * 92.0
+	var to_target := target - global_position
+	var social_closeness := clampf((trust_to_player + affection) * 0.005, 0.0, 1.0)
+	var desired_follow_distance := lerpf(160.0, 72.0, social_closeness)
+	if stop_at_distance and absf(to_target.x) <= desired_follow_distance:
+		return Vector2.ZERO
+	var pace := 0.82 if energy < 28.0 else 1.0
+	if not stop_at_distance and energy > 18.0:
+		pace = minf(1.12, pace + 0.12)
+	return Vector2(signf(to_target.x) * move_speed * pace, 0.0)
+
+func _move_toward_forage() -> Vector2:
+	if _mode == BobMode.FRIENDLY and _player and global_position.distance_to(_player.global_position) < 150.0:
+		var keep_offset := _player.global_position + Vector2(-110.0 if _player.global_position.x > global_position.x else 110.0, 0)
+		var to_keep := keep_offset - global_position
+		return Vector2(signf(to_keep.x) * move_speed * 0.72, 0.0)
+	var to_target := _forage_target - global_position
+	if absf(to_target.x) < 20.0:
+		_pick_new_forage_target()
+		if _manager:
+			_manager.collect_for_bob(1)
+		hunger = minf(100.0, hunger + 4.0)
+		energy = minf(100.0, energy + 6.0)
+		curiosity = maxf(0.0, curiosity - 35.0)
+		return Vector2.ZERO
+	return Vector2(signf(to_target.x) * move_speed, 0.0)
+
+func _try_forage_mine() -> void:
+	if _mine_cooldown_timer > 0.0 or _forage_mine_timer > 0.0 or not _world_tiles:
+		return
+	if not _should_forage_mine():
+		return
+	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
+	var candidates := [
+		Vector2i(feet_cell.x + 1, feet_cell.y - 1),
+		Vector2i(feet_cell.x - 1, feet_cell.y - 1),
+		Vector2i(feet_cell.x, feet_cell.y - 1),
+	]
+	var best_target := Vector2i(-999, -999)
+	var best_score := -100000.0
+	for target in candidates:
+		if not _can_mine_target(feet_cell, target):
+			continue
+		var score := _score_mine_target(feet_cell, target)
+		if score > best_score:
+			best_score = score
+			best_target = target
+	if best_target.x < -100:
+		_forage_mine_timer = forage_mine_interval
+		return
+	var tool := "axe" if best_target.y <= feet_cell.y else "pickaxe"
+	var result: Dictionary = _world_tiles.try_mine_cell(best_target, tool)
+	_mine_cooldown_timer = mine_action_cooldown
+	_forage_mine_timer = forage_mine_interval
+	if not bool(result.get("ok", false)):
+		return
+	if bool(result.get("mined", false)):
+		var drops: Array = result.get("drops", [])
+		if _manager:
+			_manager.collect_for_bob(1)
+		for drop in drops:
+			var kind := str(drop.get("kind", ""))
+			var amount := float(int(drop.get("amount", 0)))
+			match kind:
+				"food":
+					hunger = minf(100.0, hunger + 6.0 * amount)
+				"grass_block":
+					hunger = minf(100.0, hunger + 1.5 * amount)
+				"dirt", "wood":
+					hunger = minf(100.0, hunger + 1.0 * amount)
+		energy = minf(100.0, energy + 2.0)
+		_action_text = "targeted forage mining"
+
+const _BOB_PATH_MAP_H := 40
+const _BOB_PATH_MAX_COL_SPAN := 24
+const _BOB_PATH_MAX_JUMPS := 2
+
+func _bob_path_key(v: Vector3i) -> String:
+	return "%d,%d,%d" % [int(v.x), int(v.y), int(v.z)]
+
+func _bob_is_valid_stand_cell(x: int, y: int) -> bool:
+	if y < 0 or y >= _BOB_PATH_MAP_H:
+		return false
+	var c := Vector2i(x, y)
+	if not _world_tiles.is_solid_cell(c):
+		return false
+	return not _world_tiles.is_solid_cell(Vector2i(x, y - 1))
+
+func _bob_find_stand_y_near_column(col_x: int, hint_y: int) -> int:
+	for y in range(maxi(0, hint_y - 6), mini(_BOB_PATH_MAP_H, hint_y + 7)):
+		if _bob_is_valid_stand_cell(col_x, y):
+			return y
+	return -1
+
+func _bob_jump_vertical_clear(cx: int, from_ground_y: int) -> bool:
+	if from_ground_y < 2:
+		return false
+	return not _world_tiles.is_solid_cell(Vector2i(cx, from_ground_y - 2))
+
+func _bob_jump_diag_clear(cx: int, nx: int, from_ground_y: int) -> bool:
+	if from_ground_y < 2:
+		return false
+	if _world_tiles.is_solid_cell(Vector2i(nx, from_ground_y)):
+		return false
+	return not _world_tiles.is_solid_cell(Vector2i(nx, from_ground_y - 2))
+
+func _bob_walk_body_clear(cx: int, cy: int, nx: int, ny: int) -> bool:
+	var top_y := mini(cy, ny) - 2
+	if top_y < 0:
+		return true
+	for tx in range(mini(cx, nx), maxi(cx, nx) + 1):
+		if _world_tiles.is_solid_cell(Vector2i(tx, top_y)):
+			return false
+	return true
+
+func _bob_has_walk_jump_path_to_player() -> bool:
+	if not _world_tiles or not _player:
+		return false
+	var w := _world_tiles
+	var bc: Vector2i = w.world_to_cell(global_position + Vector2(0, surface_foot_offset)) as Vector2i
+	var pc: Vector2i = w.world_to_cell(_player.global_position + Vector2(0, 30.0)) as Vector2i
+	var x0 := mini(bc.x, pc.x) - 1
+	var x1 := maxi(bc.x, pc.x) + 1
+	if x1 - x0 + 1 > _BOB_PATH_MAX_COL_SPAN + 2:
+		return false
+	var start_y := _bob_find_stand_y_near_column(bc.x, bc.y)
+	if start_y < 0:
+		return false
+	var visited: Dictionary = {}
+	var queue: Array[Vector3i] = []
+	var start := Vector3i(bc.x, start_y, 0)
+	queue.append(start)
+	visited[_bob_path_key(start)] = true
+	var qidx := 0
+	while qidx < queue.size():
+		var cur: Vector3i = queue[qidx]
+		qidx += 1
+		var cx := int(cur.x)
+		var cy := int(cur.y)
+		var ju := int(cur.z)
+		if maxi(absi(cx - pc.x), absi(cy - pc.y)) <= 2:
+			return true
+		for dir in [-1, 1]:
+			var nxc: int = cx + dir
+			if nxc < x0 or nxc > x1:
+				continue
+			var ny := _bob_find_stand_y_near_column(nxc, cy)
+			if ny < 0:
+				continue
+			if absi(ny - cy) > 1:
+				continue
+			var nk := Vector3i(nxc, ny, ju)
+			var wk := _bob_path_key(nk)
+			if visited.get(wk, false):
+				continue
+			if not _bob_walk_body_clear(cx, cy, nxc, ny):
+				continue
+			visited[wk] = true
+			queue.append(nk)
+		if ju >= _BOB_PATH_MAX_JUMPS:
+			continue
+		var up_y := cy - 1
+		if up_y >= 0 and _bob_is_valid_stand_cell(cx, up_y) and _bob_jump_vertical_clear(cx, cy):
+			var vk := _bob_path_key(Vector3i(cx, up_y, ju + 1))
+			if not visited.get(vk, false):
+				visited[vk] = true
+				queue.append(Vector3i(cx, up_y, ju + 1))
+		for dir in [-1, 1]:
+			var jx: int = cx + dir
+			if jx < x0 or jx > x1:
+				continue
+			var land_y := cy - 1
+			if land_y < 0 or not _bob_is_valid_stand_cell(jx, land_y):
+				continue
+			if not _bob_jump_diag_clear(cx, jx, cy):
+				continue
+			var dk := _bob_path_key(Vector3i(jx, land_y, ju + 1))
+			if visited.get(dk, false):
+				continue
+			visited[dk] = true
+			queue.append(Vector3i(jx, land_y, ju + 1))
+	return false
+
+func _try_mine_escape() -> void:
+	if _mine_cooldown_timer > 0.0 or not _world_tiles or not _player:
+		return
+	# Never mine while simply following; walk/jump should handle traversal.
+	if _mode == BobMode.FRIENDLY:
+		return
+	# Mine only when actually stuck for a short period.
+	if _stuck_move_timer < 0.55:
+		return
+	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
+	var player_above: bool = _player.global_position.y < global_position.y - 40.0
+	var trapped_by_front: bool = _would_hit_side(10.0) or _would_hit_side(-10.0)
+	if not player_above and not trapped_by_front:
+		_escape_mine_chain = 0
+		return
+	if _bob_has_walk_jump_path_to_player():
+		_escape_mine_chain = 0
+		_stuck_move_timer *= 0.35
+		return
+	var target := _choose_escape_mine_target(feet_cell)
+	if target.x < -100:
+		return
+	var result: Dictionary = _world_tiles.try_mine_cell(target, "pickaxe")
+	if not bool(result.get("ok", false)):
+		return
+	_mine_cooldown_timer = mine_action_cooldown * 1.2
+	_stuck_move_timer = 0.0
+	_escape_mine_chain += 1
+	_action_text = "mining smart path toward player"
+	if bool(result.get("mined", false)):
+		energy = maxf(0.0, energy - 0.5)
+		if _manager:
+			_manager.collect_for_bob(1)
+	# Safety brake: prevent runaway excavation loops.
+	if _escape_mine_chain >= 3:
+		_escape_mine_chain = 0
+		_mine_cooldown_timer = 0.9
+
+func _can_mine_target(origin: Vector2i, target: Vector2i) -> bool:
+	var dx := absi(target.x - origin.x)
+	var dy := target.y - origin.y
+	if dx > mine_reach_cells_x:
+		return false
+	if dy < -mine_reach_cells_up:
+		return false
+	if dy > mine_reach_cells_down:
+		return false
+	if not _world_tiles.is_solid_cell(target):
+		return false
+	# Reinforced player-built walls are off-limits to B.O.B.
+	if _world_tiles.has_method("is_reinforced_cell") and _world_tiles.is_reinforced_cell(target):
+		return false
+	# Do not let B.O.B mine the base world bottom out entirely.
+	if target.y >= 34:
+		return false
+	# Avoid undermining his own footing while foraging.
+	if target.x == origin.x and target.y >= origin.y:
+		return false
+	return true
+
+func _choose_escape_mine_target(origin: Vector2i) -> Vector2i:
+	var toward_player := signi(int(round(_player.global_position.x - global_position.x)))
+	if toward_player == 0:
+		toward_player = 1
+	var ahead_x := origin.x + toward_player
+	var two_ahead_x := origin.x + toward_player * 2
+	var three_ahead_x := origin.x + toward_player * 3
+	# Candidate order is intentionally top/forward first (ledge opening),
+	# avoiding downward digs that trap B.O.B further.
+	var candidates := [
+		Vector2i(two_ahead_x, origin.y - 3),
+		Vector2i(ahead_x, origin.y - 2),
+		Vector2i(two_ahead_x, origin.y - 2),
+		Vector2i(ahead_x, origin.y - 1),
+		Vector2i(two_ahead_x, origin.y - 1),
+		Vector2i(origin.x, origin.y - 2),
+		Vector2i(origin.x, origin.y - 1),
+		Vector2i(three_ahead_x, origin.y - 1),
+		Vector2i(ahead_x, origin.y),
+	]
+	var best := Vector2i(-999, -999)
+	var best_score := -100000.0
+	for cell in candidates:
+		if not _can_mine_escape_target(origin, cell):
+			continue
+		var score := _score_escape_target(origin, cell, toward_player)
+		if score > best_score:
+			best_score = score
+			best = cell
+	return best
+
+func _score_escape_target(origin: Vector2i, target: Vector2i, toward_player: int) -> float:
+	var score := 0.0
+	# Prefer opening upward routes first.
+	if target.y < origin.y:
+		score += 8.0 + float(origin.y - target.y) * 2.0
+	# Prefer breaking in the player's horizontal direction.
+	if (target.x - origin.x) * toward_player > 0:
+		score += 5.0
+	# Penalize mining at/below foot level.
+	if target.y >= origin.y:
+		score -= 6.0
+	# Prefer blocks with air above; usually cap/ledge blockers like your red-marked example.
+	if not _world_tiles.is_solid_cell(Vector2i(target.x, target.y - 1)):
+		score += 3.5
+	# Slightly punish farther targets.
+	score -= float(absi(target.x - origin.x)) * 0.8
+	# Strongly prefer targets that expose immediate air pocket for climb.
+	if not _world_tiles.is_solid_cell(Vector2i(target.x, target.y - 1)):
+		score += 2.5
+	return score
+
+func _can_mine_escape_target(origin: Vector2i, target: Vector2i) -> bool:
+	var dx := absi(target.x - origin.x)
+	var dy := target.y - origin.y
+	if dx > escape_mine_reach_cells_x:
+		return false
+	if dy < -escape_mine_reach_cells_up:
+		return false
+	if dy > 0:
+		return false
+	if not _world_tiles.is_solid_cell(target):
+		return false
+	# Reinforced player-built walls are off-limits to B.O.B.
+	if _world_tiles.has_method("is_reinforced_cell") and _world_tiles.is_reinforced_cell(target):
+		return false
+	if target.y >= 34:
+		return false
+	# Never dig directly under feet during escape.
+	if target.x == origin.x and target.y >= origin.y:
+		return false
+	return true
+
+func _should_forage_mine() -> bool:
+	# Mine only when it serves a purpose; avoid constant world destruction.
+	if hunger < 68.0:
+		return true
+	if curiosity > 88.0 and energy > 22.0:
+		return true
+	return false
+
+func _score_mine_target(origin: Vector2i, target: Vector2i) -> float:
+	var source_id := _world_tiles.get_cell_source_id(target)
+	var score := 0.0
+	match source_id:
+		0: # grass => food-like
+			score += 8.0
+		1: # dirt => wood-like drop in this prototype
+			score += 4.0
+		2: # stone
+			score += 1.5
+		_:
+			score += 0.2
+	if not _is_exposed_block(target):
+		score -= 3.0
+	if target.y < origin.y:
+		score += 1.0
+	score -= float(absi(target.x - origin.x)) * 0.6
+	return score
+
+func _is_exposed_block(cell: Vector2i) -> bool:
+	# Prefer blocks with sky/air above to emulate harvesting visible resources.
+	return not _world_tiles.is_solid_cell(Vector2i(cell.x, cell.y - 1))
+
+func _pick_new_forage_target() -> void:
+	if _world_tiles and _world_tiles.has_method("get_random_surface_world_position"):
+		_forage_target = _world_tiles.get_random_surface_world_position(_rng)
+		return
+	if not _player:
+		_forage_target = global_position
+		return
+	_forage_target = _player.global_position + Vector2(_rng.randf_range(-forage_distance, forage_distance), 0.0)
+
+func _move_character(move_x: float, delta: float) -> void:
+	if not _world_tiles:
+		global_position.x += move_x * delta
+		velocity = Vector2(move_x, 0.0)
+		return
+	var dx := move_x * delta
+	var blocked_side := _would_hit_side(dx) if absf(dx) > 0.001 else false
+	if absf(dx) > 0.001 and not blocked_side:
+		global_position.x += dx
+
+	_is_grounded = _has_floor_beneath()
+	if _is_grounded and blocked_side and _can_jump_over_obstacle(signf(move_x)):
+		_vertical_velocity = jump_velocity
+		_is_grounded = false
+
+	if not _is_grounded:
+		_vertical_velocity = minf(max_fall_speed, _vertical_velocity + gravity_force * delta)
+	else:
+		_vertical_velocity = maxf(0.0, _vertical_velocity)
+
+	var dy := _vertical_velocity * delta
+	if dy > 0.0:
+		if _would_hit_floor(dy):
+			var foot_probe := global_position + Vector2(0, surface_foot_offset + dy)
+			var cell: Vector2i = _world_tiles.world_to_cell(foot_probe)
+			global_position.y = _world_tiles.get_cell_world_top_y(cell) - surface_foot_offset
+			_vertical_velocity = 0.0
+			_is_grounded = true
+		else:
+			global_position.y += dy
+	elif dy < 0.0:
+		if _would_hit_ceiling(dy):
+			_vertical_velocity = 0.0
+		else:
+			global_position.y += dy
+	velocity = Vector2(move_x, _vertical_velocity)
+
+func _has_floor_beneath() -> bool:
+	var left := global_position + Vector2(-collider_half_width, surface_foot_offset + 2.0)
+	var right := global_position + Vector2(collider_half_width, surface_foot_offset + 2.0)
+	return _world_tiles.is_solid_world_point(left) or _world_tiles.is_solid_world_point(right)
+
+func _would_hit_side(dx: float) -> bool:
+	var side_x := collider_half_width + 2.0
+	if dx < 0.0:
+		side_x = -side_x
+	var checks := [
+		global_position + Vector2(side_x + dx, collider_head_offset + 8.0),
+		global_position + Vector2(side_x + dx, -8.0),
+		global_position + Vector2(side_x + dx, surface_foot_offset - 6.0),
+	]
+	for p in checks:
+		if _world_tiles.is_solid_world_point(p):
+			return true
+	return false
+
+func _would_hit_floor(dy: float) -> bool:
+	var left := global_position + Vector2(-collider_half_width + 2.0, surface_foot_offset + dy)
+	var right := global_position + Vector2(collider_half_width - 2.0, surface_foot_offset + dy)
+	return _world_tiles.is_solid_world_point(left) or _world_tiles.is_solid_world_point(right)
+
+func _would_hit_ceiling(dy: float) -> bool:
+	var left := global_position + Vector2(-collider_half_width + 2.0, collider_head_offset + dy)
+	var right := global_position + Vector2(collider_half_width - 2.0, collider_head_offset + dy)
+	return _world_tiles.is_solid_world_point(left) or _world_tiles.is_solid_world_point(right)
+
+func _can_jump_over_obstacle(direction: float) -> bool:
+	if direction == 0.0:
+		return false
+	var front_x := direction * (collider_half_width + 8.0)
+	var blocked_front: bool = _world_tiles.is_solid_world_point(global_position + Vector2(front_x, -8.0))
+	var clear_above: bool = not _world_tiles.is_solid_world_point(global_position + Vector2(front_x, collider_head_offset - 16.0))
+	return blocked_front and clear_above
+
+func _mode_to_string(value: BobMode) -> String:
+	match value:
+		BobMode.FRIENDLY:
+			return "FRIENDLY"
+		BobMode.ATTACK:
+			return "ATTACK"
+		_:
+			return "UNKNOWN"
+
+func _try_sabotage_world() -> void:
+	var nearest_door := _nearest_group_node("doors", 70.0)
+	if nearest_door and nearest_door.has_method("force_close"):
+		nearest_door.force_close()
+		return
+
+	var nearest_chest := _nearest_group_node("chests", 70.0)
+	if nearest_chest and nearest_chest.has_method("break_chest"):
+		var stolen_scraps: int = nearest_chest.break_chest()
+		if stolen_scraps > 0 and _manager:
+			_manager.collect_for_bob(stolen_scraps)
+
+func _nearest_group_node(group_name: String, max_distance: float) -> Node2D:
+	var nearest: Node2D
+	var nearest_distance := max_distance
+	for item in get_tree().get_nodes_in_group(group_name):
+		if not (item is Node2D):
+			continue
+		var node := item as Node2D
+		var d := global_position.distance_to(node.global_position)
+		if d < nearest_distance:
+			nearest_distance = d
+			nearest = node
+	return nearest
+
+func _nearest_ripe_berry_bush(max_distance: float) -> Node2D:
+	var nearest: Node2D
+	var best := max_distance
+	for item in get_tree().get_nodes_in_group("berry_bushes"):
+		if not (item is Node2D):
+			continue
+		if item.has_method("is_ripe") and not item.is_ripe():
+			continue
+		var node := item as Node2D
+		var d := global_position.distance_to(node.global_position)
+		if d < best:
+			best = d
+			nearest = node
+	return nearest
+
+func _try_berry_food_steering() -> Variant:
+	if hunger >= berry_seek_hunger_below:
+		return null
+	var bush := _nearest_ripe_berry_bush(berry_seek_max_distance)
+	if not bush:
+		return null
+	var to_bush: Vector2 = (bush as Node2D).global_position - global_position
+	var dist := to_bush.length()
+	if dist <= berry_gather_distance:
+		_action_text = "munching nearby berries..."
+		if _berry_gather_cd <= 0.0 and bush.has_method("gather"):
+			_berry_gather_cd = berry_gather_cooldown
+			var result: Dictionary = bush.gather("", 1.0)
+			var amt := int(result.get("amount", 0))
+			if amt > 0:
+				if _manager:
+					_manager.collect_for_bob(maxi(1, amt >> 1))
+				hunger = minf(100.0, hunger + 6.0 * float(amt))
+				energy = minf(100.0, energy + 3.5)
+				curiosity = maxf(0.0, curiosity - 18.0)
+				_action_text = "raiding berry patch!"
+		return Vector2.ZERO
+	_action_text = "hunting berry bushes..."
+	var pace := 0.9 if energy < 26.0 else 1.0
+	var berry_seek_speed := berry_seek_speed_override if berry_seek_speed_override > 0.0 else move_speed * berry_seek_speed_multiplier
+	return Vector2(signf(to_bush.x) * berry_seek_speed * pace, 0.0)
+
+func _update_visuals() -> void:
+	var body := $Body as Sprite2D
+	var base_scale := body_visual_scale
+	if not body:
+		return
+	if velocity.length() > 2.0:
+		body.scale.x = -(base_scale * body_width_scale) if velocity.x < 0.0 else (base_scale * body_width_scale)
+		body.position.y = sin(_time_alive * 15.0) * 2.5
+		body.rotation = sin(_time_alive * 14.0) * 0.05
+		body.scale.y = base_scale + sin(_time_alive * 15.0) * 0.04
+	else:
+		body.position.y = sin(_time_alive * 5.0) * 1.0
+		body.rotation = sin(_time_alive * 5.0) * 0.012
+		body.scale.y = base_scale
+	var mode_tint := Color(0.48, 0.9, 0.62, 1.0) if _mode == BobMode.FRIENDLY else Color(1.0, 0.36, 0.36, 1.0)
+	if hunger < 30.0:
+		body.modulate = mode_tint * Color(1.0, 0.78, 0.78, 1.0)
+	else:
+		body.modulate = mode_tint
+
+func receive_food(amount: int) -> void:
+	hunger = minf(100.0, hunger + float(amount) * 22.0)
+	safety = minf(100.0, safety + float(amount) * 10.0)
+	energy = minf(100.0, energy + float(amount) * 12.0)
+	trust_to_player = minf(100.0, trust_to_player + float(amount) * 6.0)
+	affection = minf(100.0, affection + float(amount) * 4.0)
+	curiosity = maxf(0.0, curiosity - float(amount) * 8.0)
+	_action_text = "eating food from player"
+
+func _try_bite_player(delta: float) -> void:
+	var bite_hunger_max := 46.0 if _mode == BobMode.ATTACK else 35.0
+	if hunger > bite_hunger_max:
+		return
+	if not _player or not _manager:
+		return
+	if global_position.distance_to(_player.global_position) > 60.0:
+		return
+	_manager.damage_player(5.4 * delta)
+	hunger = minf(100.0, hunger + 9.0 * delta)
+	trust_to_player = maxf(0.0, trust_to_player - 4.2 * delta)
+	_action_text = "biting player (starving!)"
+
+func _try_annoy_player(delta: float) -> void:
+	if _last_annoy_tick > 0.0:
+		return
+	if not _player or not _manager:
+		return
+	var dist := global_position.distance_to(_player.global_position)
+	if dist > 58.0:
+		return
+	if _manager.has_method("is_bob_sabotage_suppressed") and _manager.is_bob_sabotage_suppressed():
+		return
+	# Discrete chip damage each proc (delta was too small to feel).
+	var chip := 2.9 if _mode == BobMode.ATTACK else 2.1
+	_manager.damage_player(chip)
+	trust_to_player = maxf(0.0, trust_to_player - 2.4)
+	_last_annoy_tick = 0.28 if _mode == BobMode.ATTACK else 0.38
+	if hunger < 68.0:
+		_action_text = "harassing player at close range"
+
+func _try_shove_player(delta: float) -> void:
+	if _mode != BobMode.ATTACK or not _player or not _manager:
+		return
+	if _shove_player_timer > 0.0:
+		return
+	if _manager.has_method("is_bob_sabotage_suppressed") and _manager.is_bob_sabotage_suppressed():
+		return
+	if global_position.distance_to(_player.global_position) > 72.0:
+		return
+	if not _player.has_method("apply_bob_shove"):
+		return
+	var dir := signf(_player.global_position.x - global_position.x)
+	if dir == 0.0:
+		dir = 1.0 if _rng.randf() < 0.5 else -1.0
+	_player.apply_bob_shove(dir, 310.0)
+	_shove_player_timer = 2.6
+	trust_to_player = maxf(0.0, trust_to_player - 1.8)
+	curiosity = minf(100.0, curiosity + 3.5)
+	_action_text = "shoving you out of the way"
+
+func receive_damage(amount: float) -> void:
+	health = clampf(health - amount, 0.0, max_health)
+	safety = maxf(0.0, safety - amount * 0.6)
+	hunger = maxf(0.0, hunger - amount * 0.25)
+	trust_to_player = maxf(0.0, trust_to_player - amount * 0.9)
+	affection = maxf(0.0, affection - amount * 0.6)
+	_action_text = "angry after being hit!"
+	if _player:
+		var kick := signf(global_position.x - _player.global_position.x)
+		if kick == 0.0:
+			kick = 1.0 if _rng.randf() < 0.5 else -1.0
+		global_position.x += kick * 14.0
+
+func get_life_debug_snapshot() -> Dictionary:
+	return {
+		"health": health,
+		"max_health": max_health,
+		"hunger": hunger,
+		"safety": safety,
+		"curiosity": curiosity,
+		"energy": energy,
+		"trust": trust_to_player,
+		"affection": affection,
+		"state": _mode_to_string(_mode),
+		"action": _action_text,
+	}
+

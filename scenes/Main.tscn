@@ -1,0 +1,754 @@
+[gd_scene load_steps=25 format=3 uid="uid://co8udq5iffgkk"]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_oysmv"]
+[ext_resource type="Script" path="res://scripts/pause_menu.gd" id="21_pause"]
+[ext_resource type="PackedScene" path="res://scenes/Player.tscn" id="2_r2lqq"]
+[ext_resource type="PackedScene" path="res://scenes/Bob.tscn" id="3_i3rry"]
+[ext_resource type="Script" path="res://scripts/game_manager.gd" id="4_4ws4m"]
+[ext_resource type="PackedScene" path="res://scenes/Door.tscn" id="5_3vlyq"]
+[ext_resource type="PackedScene" path="res://scenes/Chest.tscn" id="6_cysj3"]
+[ext_resource type="PackedScene" path="res://scenes/HazardZone.tscn" id="7_1wes4"]
+[ext_resource type="Script" path="res://scripts/world_tilemap.gd" id="8_um2ok"]
+[ext_resource type="Script" path="res://scripts/night_spawner.gd" id="9_smtjd"]
+[ext_resource type="PackedScene" path="res://scenes/CropNode.tscn" id="10_v1n3a"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/resource_wood.png" id="11_woodi"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/resource_stone.png" id="12_stonei"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/resource_food.png" id="13_foodi"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/chest_full.png" id="14_picki"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/tool_model.png" id="15_axei"]
+[ext_resource type="Texture2D" path="res://assets/blockpack/character_wizard.png" id="16_swordi"]
+[ext_resource type="Texture2D" path="res://assets/ui/heart_full_ui16.png" id="17_hfull"]
+[ext_resource type="Texture2D" path="res://assets/ui/heart_empty_ui16.png" id="18_hempty"]
+[ext_resource type="Texture2D" path="res://assets/ui/hunger_full_ui16.png" id="19_dfull"]
+[ext_resource type="Texture2D" path="res://assets/ui/hunger_empty_ui16.png" id="20_dempty"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_top"]
+size = Vector2(8960, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bottom"]
+size = Vector2(8960, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_left"]
+size = Vector2(16, 2560)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_right"]
+size = Vector2(16, 2560)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
+size = Vector2(3840, 64)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p1"]
+size = Vector2(900, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p2"]
+size = Vector2(770, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p3"]
+size = Vector2(700, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p4"]
+size = Vector2(520, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p5"]
+size = Vector2(620, 48)
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_oysmv")
+
+[node name="GameManager" type="Node" parent="." groups=["game_manager"]]
+script = ExtResource("4_4ws4m")
+
+[node name="Ground" type="ColorRect" parent="."]
+offset_right = 8960.0
+offset_bottom = 2560.0
+color = Color(0.36, 0.73, 0.96, 1)
+
+[node name="WorldTiles" type="TileMapLayer" parent="."]
+script = ExtResource("8_um2ok")
+
+[node name="Resources" type="Node2D" parent="."]
+
+[node name="Crops" type="Node2D" parent="."]
+
+[node name="TilledPatches" type="Node2D" parent="."]
+
+[node name="Decorations" type="Node2D" parent="."]
+
+[node name="WorldBounds" type="StaticBody2D" parent="."]
+
+[node name="CollisionShapeTop" type="CollisionShape2D" parent="WorldBounds"]
+position = Vector2(4480, -8)
+shape = SubResource("RectangleShape2D_top")
+
+[node name="CollisionShapeBottom" type="CollisionShape2D" parent="WorldBounds"]
+position = Vector2(4480, 2568)
+shape = SubResource("RectangleShape2D_bottom")
+
+[node name="CollisionShapeLeft" type="CollisionShape2D" parent="WorldBounds"]
+position = Vector2(-8, 1280)
+shape = SubResource("RectangleShape2D_left")
+
+[node name="CollisionShapeRight" type="CollisionShape2D" parent="WorldBounds"]
+position = Vector2(8968, 1280)
+shape = SubResource("RectangleShape2D_right")
+
+[node name="PlatformsBody" type="StaticBody2D" parent="."]
+
+[node name="GroundCollision" type="CollisionShape2D" parent="PlatformsBody"]
+position = Vector2(1920, 1440)
+shape = SubResource("RectangleShape2D_ground")
+
+[node name="PlatformA" type="CollisionShape2D" parent="PlatformsBody"]
+position = Vector2(800, 1168)
+shape = SubResource("RectangleShape2D_p1")
+
+[node name="PlatformB" type="CollisionShape2D" parent="PlatformsBody"]
+position = Vector2(1760, 1036)
+shape = SubResource("RectangleShape2D_p2")
+
+[node name="PlatformC" type="CollisionShape2D" parent="PlatformsBody"]
+position = Vector2(2850, 868)
+shape = SubResource("RectangleShape2D_p3")
+
+[node name="PlatformD" type="CollisionShape2D" parent="PlatformsBody"]
+position = Vector2(1180, 740)
+shape = SubResource("RectangleShape2D_p4")
+
+[node name="PlatformE" type="CollisionShape2D" parent="PlatformsBody"]
+position = Vector2(2450, 650)
+shape = SubResource("RectangleShape2D_p5")
+
+[node name="Player" parent="." instance=ExtResource("2_r2lqq")]
+position = Vector2(460, 1260)
+
+[node name="Bob" parent="." instance=ExtResource("3_i3rry")]
+position = Vector2(620, 1260)
+
+[node name="Door" parent="." instance=ExtResource("5_3vlyq")]
+position = Vector2(3350, 1260)
+
+[node name="Chest" parent="." instance=ExtResource("6_cysj3")]
+position = Vector2(3000, 1260)
+
+[node name="HazardZone" parent="." instance=ExtResource("7_1wes4")]
+position = Vector2(2050, 1390)
+
+[node name="StarterCropA" parent="." instance=ExtResource("10_v1n3a")]
+position = Vector2(940, 1120)
+
+[node name="StarterCropB" parent="." instance=ExtResource("10_v1n3a")]
+position = Vector2(1600, 980)
+
+[node name="NightSpawner" type="Node2D" parent="."]
+script = ExtResource("9_smtjd")
+visible = false
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="NightOverlay" type="ColorRect" parent="CanvasLayer"]
+visible = false
+offset_right = 1280.0
+offset_bottom = 720.0
+color = Color(0.06, 0.07, 0.17, 0.4)
+
+[node name="UI" type="Panel" parent="CanvasLayer"]
+visible = false
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 350.0
+offset_bottom = 110.0
+
+[node name="HUDTitle" type="Label" parent="CanvasLayer/UI"]
+visible = false
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 508.0
+offset_bottom = 35.0
+theme_override_font_sizes/font_size = 20
+text = "B.O.B Survival Prototype"
+
+[node name="HealthLabel" type="Label" parent="CanvasLayer/UI"]
+visible = false
+offset_left = 12.0
+offset_top = 42.0
+offset_right = 90.0
+offset_bottom = 61.0
+text = "Health"
+
+[node name="HealthBar" type="ProgressBar" parent="CanvasLayer/UI"]
+offset_left = 12.0
+offset_top = 18.0
+offset_right = 244.0
+offset_bottom = 40.0
+value = 100.0
+
+[node name="HungerLabel" type="Label" parent="CanvasLayer/UI"]
+visible = false
+offset_left = 12.0
+offset_top = 72.0
+offset_right = 90.0
+offset_bottom = 91.0
+text = "Hunger"
+
+[node name="HungerBar" type="ProgressBar" parent="CanvasLayer/UI"]
+offset_left = 12.0
+offset_top = 50.0
+offset_right = 244.0
+offset_bottom = 72.0
+value = 100.0
+
+[node name="ResourceLabel" type="Label" parent="CanvasLayer/UI"]
+visible = false
+offset_left = 346.0
+offset_top = 42.0
+offset_right = 780.0
+offset_bottom = 122.0
+theme_override_font_sizes/font_size = 16
+text = "Resources loading..."
+
+[node name="Hint" type="Label" parent="CanvasLayer/UI"]
+visible = false
+offset_left = 12.0
+offset_top = 112.0
+offset_right = 780.0
+offset_bottom = 150.0
+theme_override_colors/font_color = Color(0.98, 0.91, 0.62, 1)
+text = "[E] Interact/Gather"
+
+[node name="RestartButton" type="Button" parent="CanvasLayer"]
+visible = false
+offset_left = 560.0
+offset_top = 330.0
+offset_right = 720.0
+offset_bottom = 365.0
+text = "Restart Run"
+
+[node name="PauseMenu" type="Panel" parent="CanvasLayer"]
+process_mode = 3
+visible = false
+offset_left = 340.0
+offset_top = 100.0
+offset_right = 940.0
+offset_bottom = 620.0
+script = ExtResource("21_pause")
+
+[node name="VBox" type="VBoxContainer" parent="CanvasLayer/PauseMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="PauseTitle" type="Label" parent="CanvasLayer/PauseMenu/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Paused"
+horizontal_alignment = 1
+
+[node name="BestLabel" type="Label" parent="CanvasLayer/PauseMenu/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Best survival: 0:00"
+
+[node name="CurrentLabel" type="Label" parent="CanvasLayer/PauseMenu/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "This run: 0:00"
+
+[node name="Scroll" type="ScrollContainer" parent="CanvasLayer/PauseMenu/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 200)
+
+[node name="KeybindsLabel" type="Label" parent="CanvasLayer/PauseMenu/VBox/Scroll"]
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+text = ""
+
+[node name="ResumeButton" type="Button" parent="CanvasLayer/PauseMenu/VBox"]
+layout_mode = 2
+text = "Resume"
+
+[node name="CraftMenu" type="Panel" parent="CanvasLayer"]
+visible = false
+offset_left = 420.0
+offset_top = 170.0
+offset_right = 860.0
+offset_bottom = 470.0
+
+[node name="CraftTitle" type="Label" parent="CanvasLayer/CraftMenu"]
+offset_left = 10.0
+offset_top = 8.0
+offset_right = 420.0
+offset_bottom = 34.0
+theme_override_font_sizes/font_size = 18
+text = "Crafting Exchange"
+
+[node name="CloseCraftButton" type="Button" parent="CanvasLayer/CraftMenu"]
+offset_left = 394.0
+offset_top = 8.0
+offset_right = 430.0
+offset_bottom = 32.0
+text = "X"
+
+[node name="CraftToolIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
+offset_left = 12.0
+offset_top = 42.0
+offset_right = 44.0
+offset_bottom = 74.0
+texture = ExtResource("14_picki")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CraftToolButton" type="Button" parent="CanvasLayer/CraftMenu"]
+offset_left = 52.0
+offset_top = 44.0
+offset_right = 426.0
+offset_bottom = 70.0
+text = "Pickaxe  (3 Wood + 2 Stone)"
+
+[node name="CraftAxeIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
+offset_left = 12.0
+offset_top = 78.0
+offset_right = 44.0
+offset_bottom = 110.0
+texture = ExtResource("15_axei")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CraftAxeButton" type="Button" parent="CanvasLayer/CraftMenu"]
+offset_left = 52.0
+offset_top = 80.0
+offset_right = 426.0
+offset_bottom = 106.0
+text = "Axe      (4 Wood + 1 Stone)"
+
+[node name="CraftSwordIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
+offset_left = 12.0
+offset_top = 114.0
+offset_right = 44.0
+offset_bottom = 146.0
+texture = ExtResource("16_swordi")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CraftSwordButton" type="Button" parent="CanvasLayer/CraftMenu"]
+offset_left = 52.0
+offset_top = 116.0
+offset_right = 426.0
+offset_bottom = 142.0
+text = "Sword    (2 Wood + 3 Stone)"
+
+[node name="CraftHoeIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
+offset_left = 12.0
+offset_top = 150.0
+offset_right = 44.0
+offset_bottom = 182.0
+texture = ExtResource("15_axei")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CraftHoeButton" type="Button" parent="CanvasLayer/CraftMenu"]
+offset_left = 52.0
+offset_top = 152.0
+offset_right = 426.0
+offset_bottom = 178.0
+text = "Hoe      (3 Wood + 1 Stone)"
+
+[node name="CraftSnackIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
+offset_left = 12.0
+offset_top = 186.0
+offset_right = 44.0
+offset_bottom = 218.0
+texture = ExtResource("13_foodi")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CraftSnackButton" type="Button" parent="CanvasLayer/CraftMenu"]
+offset_left = 52.0
+offset_top = 188.0
+offset_right = 426.0
+offset_bottom = 214.0
+text = "Bob Snack  (2 Food + 1 Wood)"
+
+[node name="CraftMealButton" type="Button" parent="CanvasLayer/CraftMenu"]
+offset_left = 52.0
+offset_top = 224.0
+offset_right = 426.0
+offset_bottom = 250.0
+text = "Cooked Meal (3 Food + 1 Wood)"
+
+[node name="CraftFeedback" type="Label" parent="CanvasLayer/CraftMenu"]
+offset_left = 12.0
+offset_top = 258.0
+offset_right = 426.0
+offset_bottom = 290.0
+theme_override_font_sizes/font_size = 13
+text = "Exchange resources for crafted items."
+
+[node name="Hotbar" type="Panel" parent="CanvasLayer"]
+offset_left = 738.0
+offset_top = 650.0
+offset_right = 1278.0
+offset_bottom = 712.0
+
+[node name="ClockLabel" type="Label" parent="CanvasLayer"]
+offset_left = 520.0
+offset_top = 14.0
+offset_right = 760.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 26
+text = "Survived: 00:00"
+
+[node name="StatusPanel" type="Panel" parent="CanvasLayer"]
+offset_left = 16.0
+offset_top = 14.0
+offset_right = 252.0
+offset_bottom = 90.0
+
+[node name="HealthIcons" type="HBoxContainer" parent="CanvasLayer/StatusPanel"]
+offset_left = 10.0
+offset_top = 8.0
+offset_right = 228.0
+offset_bottom = 28.0
+theme_override_constants/separation = 2
+
+[node name="H1" type="TextureRect" parent="CanvasLayer/StatusPanel/HealthIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("17_hfull")
+stretch_mode = 5
+
+[node name="H2" type="TextureRect" parent="CanvasLayer/StatusPanel/HealthIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("17_hfull")
+stretch_mode = 5
+
+[node name="H3" type="TextureRect" parent="CanvasLayer/StatusPanel/HealthIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("17_hfull")
+stretch_mode = 5
+
+[node name="H4" type="TextureRect" parent="CanvasLayer/StatusPanel/HealthIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("17_hfull")
+stretch_mode = 5
+
+[node name="H5" type="TextureRect" parent="CanvasLayer/StatusPanel/HealthIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("17_hfull")
+stretch_mode = 5
+
+[node name="H6" type="TextureRect" parent="CanvasLayer/StatusPanel/HealthIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("17_hfull")
+stretch_mode = 5
+
+[node name="HungerIcons" type="HBoxContainer" parent="CanvasLayer/StatusPanel"]
+offset_left = 10.0
+offset_top = 34.0
+offset_right = 228.0
+offset_bottom = 54.0
+theme_override_constants/separation = 2
+
+[node name="D1" type="TextureRect" parent="CanvasLayer/StatusPanel/HungerIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("19_dfull")
+stretch_mode = 5
+
+[node name="D2" type="TextureRect" parent="CanvasLayer/StatusPanel/HungerIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("19_dfull")
+stretch_mode = 5
+
+[node name="D3" type="TextureRect" parent="CanvasLayer/StatusPanel/HungerIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("19_dfull")
+stretch_mode = 5
+
+[node name="D4" type="TextureRect" parent="CanvasLayer/StatusPanel/HungerIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("19_dfull")
+stretch_mode = 5
+
+[node name="D5" type="TextureRect" parent="CanvasLayer/StatusPanel/HungerIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("19_dfull")
+stretch_mode = 5
+
+[node name="D6" type="TextureRect" parent="CanvasLayer/StatusPanel/HungerIcons"]
+custom_minimum_size = Vector2(16, 16)
+texture = ExtResource("19_dfull")
+stretch_mode = 5
+
+[node name="SlotWood" type="Panel" parent="CanvasLayer/Hotbar"]
+visible = false
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 104.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotWood"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("11_woodi")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotWood"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotStone" type="Panel" parent="CanvasLayer/Hotbar"]
+visible = false
+offset_left = 110.0
+offset_top = 8.0
+offset_right = 206.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotStone"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("12_stonei")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotStone"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotFood" type="Panel" parent="CanvasLayer/Hotbar"]
+visible = false
+offset_left = 212.0
+offset_top = 8.0
+offset_right = 308.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotFood"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("13_foodi")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotFood"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotPickaxe" type="Panel" parent="CanvasLayer/Hotbar"]
+offset_left = 110.0
+offset_top = 8.0
+offset_right = 206.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotPickaxe"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("14_picki")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotPickaxe"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotAxe" type="Panel" parent="CanvasLayer/Hotbar"]
+offset_left = 212.0
+offset_top = 8.0
+offset_right = 308.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotAxe"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("15_axei")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotAxe"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotSword" type="Panel" parent="CanvasLayer/Hotbar"]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 104.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotSword"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("16_swordi")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotSword"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotShovel" type="Panel" parent="CanvasLayer/Hotbar"]
+offset_left = 314.0
+offset_top = 8.0
+offset_right = 410.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotShovel"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("14_picki")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotShovel"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotHoe" type="Panel" parent="CanvasLayer/Hotbar"]
+offset_left = 416.0
+offset_top = 8.0
+offset_right = 512.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotHoe"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("15_axei")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotHoe"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="SlotSeeds" type="Panel" parent="CanvasLayer/Hotbar"]
+visible = false
+offset_left = 722.0
+offset_top = 8.0
+offset_right = 818.0
+offset_bottom = 58.0
+
+[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotSeeds"]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 42.0
+offset_bottom = 42.0
+texture = ExtResource("13_foodi")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotSeeds"]
+offset_left = 50.0
+offset_top = 14.0
+offset_right = 92.0
+offset_bottom = 38.0
+text = "0"
+
+[node name="MaterialCounter" type="Panel" parent="CanvasLayer"]
+offset_left = 16.0
+offset_top = 640.0
+offset_right = 240.0
+offset_bottom = 712.0
+
+[node name="WoodLabel" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 12.0
+offset_top = 8.0
+offset_right = 72.0
+offset_bottom = 26.0
+text = "Wood:"
+
+[node name="WoodCount" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 78.0
+offset_top = 8.0
+offset_right = 128.0
+offset_bottom = 26.0
+text = "0"
+
+[node name="StoneLabel" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 12.0
+offset_top = 26.0
+offset_right = 72.0
+offset_bottom = 44.0
+text = "Stone:"
+
+[node name="StoneCount" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 78.0
+offset_top = 26.0
+offset_right = 128.0
+offset_bottom = 44.0
+text = "0"
+
+[node name="FoodLabel" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 12.0
+offset_top = 44.0
+offset_right = 72.0
+offset_bottom = 62.0
+text = "Food:"
+
+[node name="FoodCount" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 78.0
+offset_top = 44.0
+offset_right = 128.0
+offset_bottom = 62.0
+text = "0"
+
+[node name="SeedsLabel" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 130.0
+offset_top = 8.0
+offset_right = 192.0
+offset_bottom = 26.0
+text = "Seeds:"
+
+[node name="SeedsCount" type="Label" parent="CanvasLayer/MaterialCounter"]
+offset_left = 194.0
+offset_top = 8.0
+offset_right = 224.0
+offset_bottom = 26.0
+text = "0"

@@ -1,0 +1,45 @@
+[gd_scene load_steps=4 format=3 uid="uid://dq3e1m3p38jrm"]
+
+[ext_resource type="Script" path="res://scripts/player.gd" id="1_ubt0b"]
+[ext_resource type="Texture2D" path="res://assets/tiny16/from_clean/tile_r00_c03.png" id="2_yv6oj"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_5a2kk"]
+radius = 22.0
+
+[node name="Player" type="CharacterBody2D"]
+script = ExtResource("1_ubt0b")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_5a2kk")
+
+[node name="Body" type="Sprite2D" parent="."]
+texture = ExtResource("2_yv6oj")
+position = Vector2(0, -8)
+scale = Vector2(1, 1)
+
+[node name="HeldTool" type="Node2D" parent="."]
+visible = false
+position = Vector2(18, -8)
+z_index = 2
+
+[node name="ToolSprite" type="Sprite2D" parent="HeldTool"]
+centered = true
+position = Vector2(9, -11)
+texture_filter = 1
+scale = Vector2(1, 1)
+
+[node name="GatherFx" type="Polygon2D" parent="."]
+visible = false
+polygon = PackedVector2Array(-10, 0, 0, -6, 14, 0, 0, 6)
+color = Color(1, 0.94, 0.62, 0.9)
+position = Vector2(24, -6)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+enabled = true
+limit_left = -10000000
+limit_top = -500000
+limit_right = 10000000
+limit_bottom = 3000000
+position_smoothing_enabled = true
+position_smoothing_speed = 7.0
+zoom = Vector2(0.85, 0.85)
