@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://dq3e1m3p38jrm"]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_ubt0b"]
-[ext_resource type="Texture2D" path="res://assets/tiny16/from_clean/tile_r00_c03.png" id="2_yv6oj"]
+[ext_resource type="Texture2D" path="res://assets/characters/player_new.png" id="2_yv6oj"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_5a2kk"]
 radius = 22.0
@@ -14,17 +14,17 @@ shape = SubResource("CircleShape2D_5a2kk")
 
 [node name="Body" type="Sprite2D" parent="."]
 texture = ExtResource("2_yv6oj")
-position = Vector2(0, -8)
-scale = Vector2(1, 1)
+position = Vector2(0, -28.5)
+scale = Vector2(0.1456, 0.13)
 
 [node name="HeldTool" type="Node2D" parent="."]
 visible = false
-position = Vector2(18, -8)
+position = Vector2(14.5, -30.5)
 z_index = 2
 
 [node name="ToolSprite" type="Sprite2D" parent="HeldTool"]
 centered = true
-position = Vector2(9, -11)
+position = Vector2(6, -8)
 texture_filter = 1
 scale = Vector2(1, 1)
 

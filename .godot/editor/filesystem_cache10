@@ -1,9 +1,10 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1777970720
+::res://::1777979770
 aaimage.png::CompressedTexture2D::4833851208350894837::1773183331::1777142701::1::::<><><>0<>0<>3e05d15f4dc50ee996e32b8bad2efdeb<>res://.godot/imported/aaimage.png-7251c8e4a9c0f03d922df1700d4811c3.ctex::
 assignement proposal.md::TextFile::-1::1773179940::0::1::::<><><>0<>0<><>::
 CREDITS.md::TextFile::-1::1777898403::0::1::::<><><>0<>0<><>::
 ideas.md::TextFile::-1::1773179948::0::1::::<><><>0<>0<><>::
+README.md::TextFile::-1::1777971100::0::1::::<><><>0<>0<><>::
 ::res://assets/::1777970859
 icon.svg::CompressedTexture2D::1397651405148276405::1777898403::1777142701::1::::<><><>0<>0<>d5f2fc7d81f410bc2cde848b8c23d670<>res://.godot/imported/icon.svg-56083ea2a1f1a4f1e49773bdc6d7826c.ctex::
 ::res://assets/blockpack/::1777393794
@@ -35,8 +36,9 @@ cloud_1.png::CompressedTexture2D::3325918823362051298::1777376725::1777376753::1
 cloud_2.png::CompressedTexture2D::6544477180194635782::1777376725::1777376753::1::::<><><>0<>0<>db5515acf08e798f282efdd2ba01cf14<>res://.godot/imported/cloud_2.png-4537380c7bf7b2df035fca793665ba8f.ctex::
 cloud_3.png::CompressedTexture2D::4044084966600115134::1777376725::1777376753::1::::<><><>0<>0<>ac29978d38ea0c2c508b8d07a4224243<>res://.godot/imported/cloud_3.png-eca83081402aa1343530b42efc44a1d5.ctex::
 cloud_4.png::CompressedTexture2D::7701955926629043155::1777376725::1777376753::1::::<><><>0<>0<>10de8c0f21099780e5fb23551484a658<>res://.godot/imported/cloud_4.png-bc115d60747975cdf3051cec68ac0318.ctex::
-::res://assets/characters/::1777970865
-bob_new.png::CompressedTexture2D::1373240025964799679::1777970865::1777970899::1::::<><><>0<>0<>a52a41627591a5fd829619371c59810f<>res://.godot/imported/bob_new.png-11f0261612fafe3ee6ae10124cdcf004.ctex::
+::res://assets/characters/::1777979556
+bob_new.png::CompressedTexture2D::1373240025964799679::1777979783::1777979791::1::::<><><>0<>0<>a52a41627591a5fd829619371c59810f<>res://.godot/imported/bob_new.png-11f0261612fafe3ee6ae10124cdcf004.ctex::
+player_new.png::CompressedTexture2D::1308947238333552896::1777979782::1777979791::1::::<><><>0<>0<>829975e0ce6d059b537e0d7d6f4e7484<>res://.godot/imported/player_new.png-36b5fc398a9ee1725813cba1556dbbc9.ctex::
 ::res://assets/food/::1777963633
 berry_bush_harvested.png::CompressedTexture2D::3935476357924056080::1777931436::1777963633::1::::<><><>0<>0<>0cd3db1d12b4da90d644a370a646084f<>res://.godot/imported/berry_bush_harvested.png-f7af327e542c2c82a6f090680c5a5eef.ctex::
 berry_bush_ripe.png::CompressedTexture2D::4135251294537298074::1777931436::1777963633::1::::<><><>0<>0<>e4a60ad6caaec7bd342375dde2419c4d<>res://.godot/imported/berry_bush_ripe.png-1bc2c3840768af86f44de2efa5a33e0a.ctex::
@@ -521,7 +523,7 @@ hunger_full.svg::CompressedTexture2D::8124902022882612695::1777898403::177714753
 hunger_full_custom.png::CompressedTexture2D::6034281294050624227::1777315383::1777315511::1::::<><><>0<>0<>b0532d24e9f1af67de09252a87394471<>res://.godot/imported/hunger_full_custom.png-0ed239465053610a444275ce187775e7.ctex::
 hunger_full_ui16.png::CompressedTexture2D::636696757050478101::1777375412::1777375445::1::::<><><>0<>0<>e046bdd1e81619527d7ee20f49d3580c<>res://.godot/imported/hunger_full_ui16.png-5dd2ebd5d71b35de2ee7e9b04e223ddb.ctex::
 hunger_icon.png::CompressedTexture2D::13581749882963861::1777315382::1777315511::1::::<><><>0<>0<>aff86ed60dea84bb80f90acdb6175415<>res://.godot/imported/hunger_icon.png-0b9b4256bbc71ba3d802f784e8531da6.ctex::
-::res://csresources-main/::1777963633
+::res://csresources-main/::1777975141
 foss_resources.md::TextFile::-1::1774263286::0::1::::<><><>0<>0<><>::
 gen_ai.md::TextFile::-1::1774263286::0::1::::<><><>0<>0<><>::
 gitlab.md::TextFile::-1::1774263286::0::1::::<><><>0<>0<><>::
@@ -540,7 +542,7 @@ README.md::TextFile::-1::1774263286::0::1::::<><><>0<>0<><>::
 p8.png::CompressedTexture2D::5788537648689524324::1774263286::1777963633::1::::<><><>0<>0<>09a9280a204e6cec96b7d4411fabe6ab<>res://.godot/imported/p8.png-ec494f88c879f29f7fedfc7ddb2fee25.ctex::
 ::res://scenes/::1777929654
 BerryBush.tscn::PackedScene::4110952570292584::1777932275::0::1::::<><><>0<>0<><>::res://scripts/berry_bush.gd<>res://assets/food/berry_bush_ripe.png
-Bob.tscn::PackedScene::3988086602936334654::1777970876::0::1::::<><><>0<>0<><>::res://scripts/bob_agent.gd<>res://assets/tiny16/from_clean/tile_r00_c00.png
+Bob.tscn::PackedScene::3988086602936334654::1777979699::0::1::::<><><>0<>0<><>::res://scripts/bob_agent.gd<>res://assets/tiny16/from_clean/tile_r00_c00.png
 Chest.tscn::PackedScene::5609463481795864543::1777898403::0::1::::<><><>0<>0<><>::res://scripts/chest.gd<>res://assets/blockpack/chest_full.png
 CropNode.tscn::PackedScene::8400731779620988109::1777898403::0::1::::<><><>0<>0<><>::res://scripts/crop_node.gd<>res://assets/blockpack/tile_grass.png
 Door.tscn::PackedScene::5815560924979892524::1777898403::0::1::::<><><>0<>0<><>::res://scripts/door.gd<>res://assets/blockpack/door_closed.png
@@ -548,14 +550,14 @@ HazardZone.tscn::PackedScene::2718932305642098128::1777898403::0::1::::<><><>0<>
 Main.tscn::PackedScene::5824830228527775726::1777929564::0::1::::<><><>0<>0<><>::res://scripts/main.gd<>res://scenes/Player.tscn<>res://scenes/Bob.tscn<>res://scripts/game_manager.gd<>res://scenes/Door.tscn<>res://scenes/Chest.tscn<>res://scenes/HazardZone.tscn<>res://scripts/world_tilemap.gd<>res://scripts/night_spawner.gd<>res://scenes/CropNode.tscn<>res://assets/blockpack/resource_wood.png<>res://assets/blockpack/resource_stone.png<>res://assets/blockpack/resource_food.png<>res://assets/blockpack/chest_full.png<>res://assets/blockpack/tool_model.png<>res://assets/blockpack/character_wizard.png<>res://assets/ui/heart_full_ui16.png<>res://assets/ui/heart_empty_ui16.png<>res://assets/ui/hunger_full_ui16.png<>res://assets/ui/hunger_empty_ui16.png
 Monster.tscn::PackedScene::7672067252377018035::1777898403::0::1::::<><><>0<>0<><>::res://scripts/monster.gd
 PlacedTotem.tscn::PackedScene::4321628360369679814::1777914704::0::1::::<><><>0<>0<><>::res://scripts/placed_totem.gd
-Player.tscn::PackedScene::8340376099269070362::1777925878::0::1::::<><><>0<>0<><>::res://scripts/player.gd<>res://assets/tiny16/from_clean/tile_r00_c03.png
+Player.tscn::PackedScene::8340376099269070362::1777979696::0::1::::<><><>0<>0<><>::res://scripts/player.gd<>res://assets/characters/player_new.png
 ResourceNode.tscn::PackedScene::5261395560865260175::1777898403::0::1::::<><><>0<>0<><>::res://scripts/resource_node.gd<>res://assets/blockpack/tile_dirt.png
 StartScreen.tscn::PackedScene::-1::1777929654::0::1::::<><><>0<>0<><>::
 TilledPatch.tscn::PackedScene::5216254189425126017::1777898403::0::1::::<><><>0<>0<><>::res://scripts/tilled_patch.gd<>res://assets/blockpack/tile_dirt.png
 TreeNode.tscn::PackedScene::-1::1777898403::0::1::::<><><>0<>0<><>::res://scripts/tree_node.gd<>res://assets/blockpack/tree_trunk_plain.png<>res://assets/blockpack/tree_leaves_plain.png
 ::res://scripts/::1777929719
 berry_bush.gd::GDScript::589824065576501502::1777970788::0::1::::<>Area2D<><>0<>0<><>::
-bob_agent.gd::GDScript::4086683769558018090::1777970797::0::1::::<>CharacterBody2D<><>0<>0<><>::
+bob_agent.gd::GDScript::4086683769558018090::1777979694::0::1::::<>CharacterBody2D<><>0<>0<><>::
 chest.gd::GDScript::1075380110983377830::1777898403::0::1::::<>Area2D<><>0<>0<><>::
 crop_node.gd::GDScript::1357480012229276112::1777898403::0::1::::<>Area2D<><>0<>0<><>::
 door.gd::GDScript::5880364580224278894::1777898403::0::1::::<>Area2D<><>0<>0<><>::
@@ -566,7 +568,7 @@ monster.gd::GDScript::626521495147425369::1777898403::0::1::::<>CharacterBody2D<
 night_spawner.gd::GDScript::8186749964146241560::1777898403::0::1::::<>Node2D<><>0<>0<><>::
 pause_menu.gd::GDScript::8290431890350732359::1777929528::0::1::::<>Panel<><>0<>0<><>::
 placed_totem.gd::GDScript::3136456359860470992::1777914430::0::1::::<>Area2D<><>0<>0<><>::
-player.gd::GDScript::7496127940544477230::1777929418::0::1::::<>CharacterBody2D<><>0<>0<><>::
+player.gd::GDScript::7496127940544477230::1777979689::0::1::::<>CharacterBody2D<><>0<>0<><>::
 resource_node.gd::GDScript::4191752980280221573::1777898403::0::1::::<>Area2D<><>0<>0<><>::
 run_records.gd::GDScript::562181728499862772::1777930189::0::1::::<>Node<><>0<>0<><>::
 start_screen.gd::GDScript::8128352798396765863::1777929621::0::1::::<>Control<><>0<>0<><>::

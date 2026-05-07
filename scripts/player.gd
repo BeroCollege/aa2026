@@ -13,10 +13,27 @@ extends CharacterBody2D
 @export var max_fall_speed: float = 980.0
 @export var collider_half_width: float = 14.0
 @export var collider_head_offset: float = -80.0
-@export var body_visual_scale: float = 6.0
-@export var body_width_scale: float = 0.82
+@export var body_visual_scale: float = 0.13
+@export var body_width_scale: float = 1.12
+@export var body_visual_y_offset: float = -28.5
+@export var walk_bob_amplitude: float = 1.25
+@export var walk_bob_frequency: float = 9.5
+@export var walk_tilt_amplitude: float = 0.022
+@export var walk_tilt_frequency: float = 11.0
+@export var walk_squash_amplitude: float = 0.0
+@export var walk_baseline_offset: float = 0.65
+@export var idle_bob_amplitude: float = 0.45
+@export var idle_bob_frequency: float = 3.3
+@export var idle_tilt_amplitude: float = 0.006
+@export var idle_tilt_frequency: float = 4.2
+@export var held_tool_hand_offset_x: float = 14.5
+@export var held_tool_hand_offset_y: float = -2.0
 ## Multiplied by body_visual_scale for held tool strip (columns are large PNGs).
 @export var held_tool_scale_coefficient: float = 0.038
+@export var sword_bob_knockback_strength: float = 430.0
+@export var melee_attack_range: float = 86.0
+@export var melee_attack_vertical_tolerance: float = 58.0
+@export var melee_attack_cooldown_seconds: float = 0.32
 
 var _gather_timer: float = 0.0
 var _manager
@@ -37,6 +54,7 @@ var _place_kind: String = "dirt"
 var _place_kinds: Array[String] = ["dirt", "stone", "grass_block", "reinforced"]
 var _place_cooldown: float = 0.0
 var _totem_scene := preload("res://scenes/PlacedTotem.tscn")
+var _melee_cooldown: float = 0.0
 
 @onready var _tool_sprite: Sprite2D = $HeldTool/ToolSprite
 var _held_tool_atlas: AtlasTexture
@@ -81,6 +99,7 @@ func _physics_process(delta: float) -> void:
 
 	_gather_timer = maxf(0.0, _gather_timer - delta)
 	_place_cooldown = maxf(0.0, _place_cooldown - delta)
+	_melee_cooldown = maxf(0.0, _melee_cooldown - delta)
 	if Input.is_action_just_pressed("mine_block") and _gather_timer <= 0.0:
 		_gather_timer = gather_cooldown_seconds
 		_handle_mine()
@@ -162,6 +181,8 @@ func _handle_interact() -> void:
 	_last_hint = "Nothing nearby to interact with."
 
 func _handle_mine() -> void:
+	if _attack_hostile_nearby():
+		return
 	# Left-click: mine what the cursor is pointing at (tile or tree).
 	if _try_mine_tile_under_cursor():
 		_set_action("mine", 0.22)
@@ -201,32 +222,43 @@ func _try_mine_resource_under_cursor() -> bool:
 func _attack_hostile_nearby() -> bool:
 	if _selected_tool == "hoe":
 		return false
+	if _melee_cooldown > 0.0:
+		return false
 	var monster := _find_nearest_group_node("monsters")
-	if monster and monster.has_method("receive_damage") and global_position.distance_to((monster as Node2D).global_position) <= 72.0:
+	if monster and monster.has_method("receive_damage") and _is_target_in_melee_range(monster):
 		monster.receive_damage(_tool_combat_damage(_selected_tool))
 		_set_action("mine", 0.24)
+		_melee_cooldown = melee_attack_cooldown_seconds
 		_last_hint = "Hit monster with %s." % _selected_tool
 		return true
 	var bob := _find_nearest_group_node("bob_agent")
-	if bob and bob.has_method("receive_damage"):
-		var bob_dist := global_position.distance_to((bob as Node2D).global_position)
-		if bob_dist > 82.0:
-			return false
+	if bob and bob.has_method("receive_damage") and _is_target_in_melee_range(bob):
 		if _selected_tool == "sword":
-			bob.receive_damage(_tool_combat_damage(_selected_tool) * 0.4)
+			var hit_dir := signf((bob as Node2D).global_position.x - global_position.x)
+			if hit_dir == 0.0:
+				hit_dir = 1.0 if (($Body as Sprite2D).scale.x >= 0.0) else -1.0
+			bob.receive_damage(_tool_combat_damage(_selected_tool), hit_dir, sword_bob_knockback_strength)
 			_set_action("mine", 0.2)
+			_melee_cooldown = melee_attack_cooldown_seconds
 			_last_hint = "You hit B.O.B. with the sword — heavy discipline."
 			if _manager:
 				_manager.suppress_bob_sabotage_for(2.2)
 			return true
 		if _selected_tool == "pickaxe" or _selected_tool == "axe" or _selected_tool == "shovel":
-			bob.receive_damage(_tool_combat_damage(_selected_tool) * 0.2)
+			bob.receive_damage(_tool_combat_damage(_selected_tool) * 0.35)
 			_set_action("mine", 0.22)
+			_melee_cooldown = melee_attack_cooldown_seconds
 			_last_hint = "Bonked B.O.B. with the %s — he backs off your pack briefly." % _selected_tool
 			if _manager:
 				_manager.suppress_bob_sabotage_for(1.6)
 			return true
 	return false
+
+func _is_target_in_melee_range(target: Node2D) -> bool:
+	var to_target := target.global_position - global_position
+	if absf(to_target.y) > melee_attack_vertical_tolerance:
+		return false
+	return to_target.length() <= melee_attack_range
 
 func _try_hoe_crop_actions() -> bool:
 	var crop := _find_nearest_group_node("crops")
@@ -306,28 +338,31 @@ func _update_visuals(input_vector: Vector2) -> void:
 		if _selected_tool == "shovel" and _manager.inventory["shovel"] <= 0:
 			_selected_tool = "pickaxe" if _manager.inventory["pickaxe"] > 0 else ("axe" if _manager.inventory["axe"] > 0 else ("sword" if _manager.inventory["sword"] > 0 else ("hoe" if _manager.inventory["hoe"] > 0 else "shovel")))
 	if input_vector.length() > 0.05:
+		var move_intensity := clampf(absf(input_vector.x), 0.0, 1.0)
+		var walk_wave := sin(_time_alive * walk_bob_frequency)
 		body.scale.x = -(base_scale * body_width_scale) if input_vector.x < 0.0 else (base_scale * body_width_scale)
-		body.position.y = sin(_time_alive * 14.0) * 2.0
-		body.rotation = sin(_time_alive * 18.0) * 0.04
-		body.scale.y = base_scale + sin(_time_alive * 18.0) * 0.03
+		body.position.y = body_visual_y_offset + walk_baseline_offset + walk_wave * walk_bob_amplitude * move_intensity
+		body.rotation = sin(_time_alive * walk_tilt_frequency) * walk_tilt_amplitude * move_intensity
+		body.scale.y = base_scale - absf(walk_wave) * walk_squash_amplitude * move_intensity
 	else:
-		body.position.y = sin(_time_alive * 4.0) * 1.0
-		body.rotation = sin(_time_alive * 6.0) * 0.01
+		body.position.y = body_visual_y_offset + sin(_time_alive * idle_bob_frequency) * idle_bob_amplitude
+		body.rotation = sin(_time_alive * idle_tilt_frequency) * idle_tilt_amplitude
 		body.scale.y = base_scale
 
 	if held_tool:
-		held_tool.position.x = -18.0 if body.scale.x < 0.0 else 18.0
-		held_tool.position.y = body.position.y + 5.0
-		held_tool.scale.x = -1.0 if body.scale.x < 0.0 else 1.0
+		var facing_sign := -1.0 if body.scale.x < 0.0 else 1.0
+		held_tool.position.x = held_tool_hand_offset_x * facing_sign
+		held_tool.position.y = body.position.y + held_tool_hand_offset_y
+		held_tool.scale.x = facing_sign
 		held_tool.rotation = 0.0
 		if _action_state == "mine":
-			held_tool.rotation = sin(_time_alive * 28.0) * 0.9
+			held_tool.rotation = sin(_time_alive * 28.0) * 0.72 * facing_sign
 		elif _action_state == "collect":
-			held_tool.rotation = sin(_time_alive * 16.0) * 0.25
+			held_tool.rotation = sin(_time_alive * 16.0) * 0.2 * facing_sign
 		elif _action_state == "feed":
-			held_tool.rotation = -0.35 + sin(_time_alive * 22.0) * 0.12
+			held_tool.rotation = (-0.28 + sin(_time_alive * 22.0) * 0.1) * facing_sign
 		elif _action_state == "craft":
-			held_tool.rotation = sin(_time_alive * 24.0) * 0.5
+			held_tool.rotation = sin(_time_alive * 24.0) * 0.4 * facing_sign
 	if gather_fx:
 		gather_fx.position.x = -24.0 if body.scale.x < 0.0 else 24.0
 		# Mine swing uses the strip tool sprite; keep sparkle only for "collect" to avoid a smeared shape near the head.

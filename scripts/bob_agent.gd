@@ -13,19 +13,77 @@ enum BobMode {
 @export var max_fall_speed: float = 980.0
 @export var collider_half_width: float = 14.0
 @export var collider_head_offset: float = -80.0
-@export var body_visual_scale: float = 6.0
-@export var body_width_scale: float = 0.82
+@export var body_visual_scale: float = 0.13
+@export var body_width_scale: float = 1.06
+@export var body_visual_y_offset: float = -11.0
+@export var walk_bob_amplitude: float = 1.45
+@export var walk_bob_frequency: float = 9.2
+@export var walk_tilt_amplitude: float = 0.028
+@export var walk_tilt_frequency: float = 10.5
+@export var walk_squash_amplitude: float = 0.0
+@export var walk_baseline_offset: float = 0.7
+@export var idle_bob_amplitude: float = 0.5
+@export var idle_bob_frequency: float = 3.4
+@export var idle_tilt_amplitude: float = 0.007
+@export var idle_tilt_frequency: float = 4.3
+@export var attack_lean_radians: float = 0.01
 @export var mine_reach_cells_x: int = 1
 @export var mine_reach_cells_up: int = 2
 @export var mine_reach_cells_down: int = 1
 @export var mine_action_cooldown: float = 0.22
 @export var forage_mine_interval: float = 1.05
+@export var place_action_cooldown: float = 1.45
+@export var attack_place_max_distance: float = 140.0
+@export var attack_place_chance: float = 0.45
+@export var bridge_place_chance: float = 0.72
+@export var fortify_place_chance: float = 0.38
 @export var escape_mine_reach_cells_x: int = 2
 @export var escape_mine_reach_cells_up: int = 3
-@export var friendly_mode_min_seconds: float = 5.0
-@export var friendly_mode_max_seconds: float = 12.0
-@export var attack_mode_min_seconds: float = 4.5
-@export var attack_mode_max_seconds: float = 10.0
+@export var friendly_mode_min_seconds: float = 2.8
+@export var friendly_mode_max_seconds: float = 5.8
+@export var attack_mode_min_seconds: float = 6.0
+@export var attack_mode_max_seconds: float = 10.5
+@export var attack_mode_base_bias: float = 0.72
+@export var attack_bias_early_grace_first_window: float = 16.0
+@export var attack_bias_early_grace_first_penalty: float = 0.12
+@export var attack_bias_early_grace_second_window: float = 38.0
+@export var attack_bias_early_grace_second_penalty: float = 0.04
+@export var attack_bias_hunger_threshold: float = 62.0
+@export var attack_bias_hunger_bonus: float = 0.22
+@export var attack_bias_low_trust_threshold: float = 55.0
+@export var attack_bias_low_trust_bonus: float = 0.20
+@export var attack_bias_low_energy_threshold: float = 20.0
+@export var attack_bias_low_energy_penalty: float = 0.18
+@export var attack_bias_sword_distance: float = 115.0
+@export var attack_bias_sword_penalty: float = 0.12
+@export var attack_bias_randomness: float = 0.14
+@export var attack_bias_min: float = 0.28
+@export var attack_bias_max: float = 0.94
+@export var attack_chase_lead_distance: float = 126.0
+@export var attack_pace_boost: float = 0.22
+@export var attack_pace_max: float = 1.24
+@export var attack_annoy_distance: float = 66.0
+@export var attack_annoy_damage: float = 3.3
+@export var friendly_annoy_damage: float = 2.0
+@export var attack_annoy_cooldown: float = 0.22
+@export var friendly_annoy_cooldown: float = 0.36
+@export var attack_shove_range: float = 82.0
+@export var attack_shove_min_distance: float = 22.0
+@export var attack_shove_strength: float = 380.0
+@export var attack_shove_harass_strength_multiplier: float = 1.25
+@export var attack_shove_cooldown: float = 1.2
+@export var attack_shove_harass_cooldown: float = 0.55
+@export var attack_shove_cooldown_floor: float = 0.4
+@export var hurt_knockback_decay: float = 940.0
+@export var hurt_knockback_max_speed: float = 660.0
+@export var bite_contact_range: float = 60.0
+@export var bite_attack_hunger_max: float = 52.0
+@export var bite_friendly_hunger_max: float = 35.0
+@export var steering_direction_deadzone: float = 10.0
+@export var steering_flip_hold_time: float = 0.11
+@export var steering_accel: float = 1500.0
+@export var steering_decel: float = 1850.0
+@export var steering_turn_brake: float = 2400.0
 
 @export var berry_seek_hunger_below: float = 62.0
 @export var berry_seek_max_distance: float = 520.0
@@ -34,8 +92,8 @@ enum BobMode {
 @export var berry_seek_speed_multiplier: float = 1.85
 @export var berry_seek_speed_override: float = 0.0
 
-@export var max_health: float = 2000.0
-@export var health: float = 2000.0
+@export var max_health: float = 320.0
+@export var health: float = 320.0
 @export var hunger: float = 80.0
 @export var safety: float = 100.0
 @export var curiosity: float = 40.0
@@ -56,6 +114,7 @@ var _vertical_velocity: float = 0.0
 var _is_grounded: bool = false
 var _last_annoy_tick: float = 0.0
 var _mine_cooldown_timer: float = 0.0
+var _place_cooldown_timer: float = 0.0
 var _forage_mine_timer: float = 0.0
 var _intended_move_x: float = 0.0
 var _stuck_move_timer: float = 0.0
@@ -64,6 +123,10 @@ var _shove_player_timer: float = 0.0
 var _sword_scare_cd: float = 0.0
 var _calm_aura_count: int = 0
 var _berry_gather_cd: float = 0.0
+var _hurt_knockback_velocity: float = 0.0
+var _smoothed_move_x: float = 0.0
+var _horizontal_intent_sign: float = 0.0
+var _intent_flip_hold_timer: float = 0.0
 
 func _ready() -> void:
 	add_to_group("bob_agent")
@@ -83,6 +146,7 @@ func _process(delta: float) -> void:
 	_mode_timer = maxf(0.0, _mode_timer - delta)
 	_last_annoy_tick = maxf(0.0, _last_annoy_tick - delta)
 	_mine_cooldown_timer = maxf(0.0, _mine_cooldown_timer - delta)
+	_place_cooldown_timer = maxf(0.0, _place_cooldown_timer - delta)
 	_forage_mine_timer = maxf(0.0, _forage_mine_timer - delta)
 	_sword_scare_cd = maxf(0.0, _sword_scare_cd - delta)
 	_update_needs(delta)
@@ -114,11 +178,13 @@ func _physics_process(_delta: float) -> void:
 				_try_bite_player(_delta)
 				_try_annoy_player(_delta)
 				_try_shove_player(_delta)
+				_try_place_blocks()
 
 	_shove_player_timer = maxf(0.0, _shove_player_timer - _delta)
-	_intended_move_x = desired_velocity.x
+	var filtered_move_x := _resolve_smoothed_move_x(desired_velocity.x, _delta)
+	_intended_move_x = filtered_move_x
 	var before_x := global_position.x
-	_move_character(desired_velocity.x, _delta)
+	_move_character(filtered_move_x, _delta)
 	var moved_x := absf(global_position.x - before_x)
 	if absf(_intended_move_x) > 8.0 and moved_x < 0.35:
 		_stuck_move_timer += _delta
@@ -126,6 +192,128 @@ func _physics_process(_delta: float) -> void:
 		_stuck_move_timer = maxf(0.0, _stuck_move_timer - _delta * 2.0)
 	_try_mine_escape()
 	_update_visuals()
+
+func _try_place_blocks() -> void:
+	if _place_cooldown_timer > 0.0 or not _world_tiles or not _player or not _manager:
+		return
+	if not _manager.inventory is Dictionary:
+		return
+	# Keep placement intentional and readable: prefer bridge/terrain fixes first,
+	# then combat obstruction around the player lane, then local fortification.
+	if _try_place_bridge_patch():
+		return
+	if _try_place_attack_obstruction():
+		return
+	_try_place_self_fortify()
+
+func _try_place_bridge_patch() -> bool:
+	if _rng.randf() > bridge_place_chance:
+		return false
+	var dir := signi(int(round(_intended_move_x)))
+	if dir == 0:
+		dir = signi(int(round(_player.global_position.x - global_position.x)))
+		if dir == 0:
+			dir = 1
+	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
+	var front_foot := Vector2i(feet_cell.x + dir, feet_cell.y)
+	var bridge_cell := Vector2i(feet_cell.x + dir, feet_cell.y + 1)
+	if _world_tiles.is_solid_cell(front_foot):
+		return false
+	if _world_tiles.is_solid_cell(bridge_cell):
+		return false
+	var below_bridge := Vector2i(bridge_cell.x, bridge_cell.y + 1)
+	if not _world_tiles.is_solid_cell(below_bridge):
+		return false
+	var mat := _choose_place_material_for("bridge")
+	if mat == "":
+		return false
+	if _attempt_place_cell(bridge_cell, mat):
+		_action_text = "patching a path gap"
+		return true
+	return false
+
+func _try_place_attack_obstruction() -> bool:
+	if _mode != BobMode.ATTACK:
+		return false
+	if _manager.has_method("is_bob_sabotage_suppressed") and _manager.is_bob_sabotage_suppressed():
+		return false
+	var dist := global_position.distance_to(_player.global_position)
+	if dist > attack_place_max_distance:
+		return false
+	if _rng.randf() > attack_place_chance:
+		return false
+	var bob_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
+	var player_cell: Vector2i = _world_tiles.world_to_cell(_player.global_position + Vector2(0, 30.0))
+	var lane_dir := signi(player_cell.x - bob_cell.x)
+	if lane_dir == 0:
+		lane_dir = 1 if _rng.randf() < 0.5 else -1
+	var candidates := [
+		Vector2i(player_cell.x - lane_dir, player_cell.y - 1),
+		Vector2i(player_cell.x - lane_dir, player_cell.y),
+		Vector2i(player_cell.x, player_cell.y - 1),
+	]
+	var mat := _choose_place_material_for("attack")
+	if mat == "":
+		return false
+	for c in candidates:
+		if _attempt_place_cell(c, mat):
+			_action_text = "placing obstacle in your lane"
+			return true
+	return false
+
+func _try_place_self_fortify() -> bool:
+	if _mode != BobMode.ATTACK:
+		return false
+	if safety > 58.0:
+		return false
+	if _rng.randf() > fortify_place_chance:
+		return false
+	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
+	var player_dir := signi(int(round(_player.global_position.x - global_position.x)))
+	if player_dir == 0:
+		player_dir = 1
+	var wall_cell := Vector2i(feet_cell.x - player_dir, feet_cell.y - 1)
+	var mat := _choose_place_material_for("fortify")
+	if mat == "":
+		return false
+	if _attempt_place_cell(wall_cell, mat):
+		_action_text = "fortifying around itself"
+		return true
+	return false
+
+func _choose_place_material_for(intent: String) -> String:
+	var inv: Dictionary = _manager.inventory
+	var order: Array[String]
+	match intent:
+		"attack":
+			order = ["reinforced", "stone", "dirt", "grass_block"]
+		"fortify":
+			order = ["reinforced", "stone", "dirt", "grass_block"]
+		"bridge":
+			order = ["dirt", "grass_block", "stone", "reinforced"]
+		_:
+			order = ["dirt", "grass_block", "stone", "reinforced"]
+	for k in order:
+		if int(inv.get(k, 0)) > 0:
+			# Keep reinforced scarce so Bob does not hard-lock too often.
+			if k == "reinforced" and intent == "attack" and int(inv.get("reinforced", 0)) < 2:
+				continue
+			return k
+	return ""
+
+func _attempt_place_cell(cell: Vector2i, kind: String) -> bool:
+	if kind == "":
+		return false
+	if int(_manager.inventory.get(kind, 0)) <= 0:
+		return false
+	var result: Dictionary = _world_tiles.try_place_cell(cell, kind)
+	if not bool(result.get("ok", false)):
+		return false
+	_manager.inventory[kind] = int(_manager.inventory.get(kind, 0)) - 1
+	if _manager.has_method("notify_inventory_changed"):
+		_manager.notify_inventory_changed()
+	_place_cooldown_timer = place_action_cooldown
+	return true
 
 func get_status_text() -> String:
 	return "B.O.B | Hunger: %.0f  Safety: %.0f  Curiosity: %.0f  Mode: %s  Action: %s" % [
@@ -195,21 +383,21 @@ func _select_mode(delta: float) -> void:
 	if _mode_timer > 0.0:
 		return
 
-	var bias_to_attack := 0.5
+	var bias_to_attack := attack_mode_base_bias
 	# Early-game grace: stay friendly for ~30s so the player can ramp up tools.
-	if _time_alive < 30.0:
-		bias_to_attack -= 0.35
-	elif _time_alive < 60.0:
-		bias_to_attack -= 0.12
-	if hunger < 55.0:
-		bias_to_attack += 0.15
-	if trust_to_player < 40.0:
-		bias_to_attack += 0.15
-	if energy < 25.0:
-		bias_to_attack -= 0.25
-	if player_wields_sword and player_distance < 130.0:
-		bias_to_attack -= 0.2
-	bias_to_attack = clampf(bias_to_attack + _rng.randf_range(-0.18, 0.18), 0.05, 0.9)
+	if _time_alive < attack_bias_early_grace_first_window:
+		bias_to_attack -= attack_bias_early_grace_first_penalty
+	elif _time_alive < attack_bias_early_grace_second_window:
+		bias_to_attack -= attack_bias_early_grace_second_penalty
+	if hunger < attack_bias_hunger_threshold:
+		bias_to_attack += attack_bias_hunger_bonus
+	if trust_to_player < attack_bias_low_trust_threshold:
+		bias_to_attack += attack_bias_low_trust_bonus
+	if energy < attack_bias_low_energy_threshold:
+		bias_to_attack -= attack_bias_low_energy_penalty
+	if player_wields_sword and player_distance < attack_bias_sword_distance:
+		bias_to_attack -= attack_bias_sword_penalty
+	bias_to_attack = clampf(bias_to_attack + _rng.randf_range(-attack_bias_randomness, attack_bias_randomness), attack_bias_min, attack_bias_max)
 
 	_mode = BobMode.ATTACK if _rng.randf() < bias_to_attack else BobMode.FRIENDLY
 	_roll_mode_timer()
@@ -235,7 +423,7 @@ func _move_toward_player(stop_at_distance: bool) -> Vector2:
 	# Cut off escape routes: lead slightly in the direction the player is moving.
 	if not stop_at_distance and _player.has_method("get_last_move_x"):
 		var lx: float = float(_player.get_last_move_x())
-		target.x += lx * 92.0
+		target.x += lx * attack_chase_lead_distance
 	var to_target := target - global_position
 	var social_closeness := clampf((trust_to_player + affection) * 0.005, 0.0, 1.0)
 	var desired_follow_distance := lerpf(160.0, 72.0, social_closeness)
@@ -243,7 +431,7 @@ func _move_toward_player(stop_at_distance: bool) -> Vector2:
 		return Vector2.ZERO
 	var pace := 0.82 if energy < 28.0 else 1.0
 	if not stop_at_distance and energy > 18.0:
-		pace = minf(1.12, pace + 0.12)
+		pace = minf(attack_pace_max, pace + attack_pace_boost)
 	return Vector2(signf(to_target.x) * move_speed * pace, 0.0)
 
 func _move_toward_forage() -> Vector2:
@@ -591,11 +779,46 @@ func _pick_new_forage_target() -> void:
 		return
 	_forage_target = _player.global_position + Vector2(_rng.randf_range(-forage_distance, forage_distance), 0.0)
 
+func _resolve_smoothed_move_x(desired_x: float, delta: float) -> float:
+	var desired_sign := 0.0
+	if absf(desired_x) > steering_direction_deadzone:
+		desired_sign = signf(desired_x)
+
+	if desired_sign == 0.0:
+		_horizontal_intent_sign = 0.0
+		_intent_flip_hold_timer = 0.0
+	elif _horizontal_intent_sign == 0.0:
+		_horizontal_intent_sign = desired_sign
+		_intent_flip_hold_timer = 0.0
+	elif desired_sign != _horizontal_intent_sign:
+		if _intent_flip_hold_timer <= 0.0:
+			_intent_flip_hold_timer = steering_flip_hold_time
+		_intent_flip_hold_timer = maxf(0.0, _intent_flip_hold_timer - delta)
+		if _intent_flip_hold_timer <= 0.0:
+			_horizontal_intent_sign = desired_sign
+	else:
+		_intent_flip_hold_timer = 0.0
+
+	var target_x := 0.0
+	if desired_sign != 0.0:
+		target_x = absf(desired_x) * _horizontal_intent_sign
+	var rate := steering_accel if absf(target_x) > absf(_smoothed_move_x) else steering_decel
+	if target_x != 0.0 and _smoothed_move_x != 0.0 and signf(target_x) != signf(_smoothed_move_x):
+		rate = steering_turn_brake
+	_smoothed_move_x = move_toward(_smoothed_move_x, target_x, rate * delta)
+	return _smoothed_move_x
+
 func _move_character(move_x: float, delta: float) -> void:
 	if not _world_tiles:
-		global_position.x += move_x * delta
-		velocity = Vector2(move_x, 0.0)
+		global_position.x += (move_x + _hurt_knockback_velocity) * delta
+		_hurt_knockback_velocity = move_toward(_hurt_knockback_velocity, 0.0, hurt_knockback_decay * delta)
+		velocity = Vector2(move_x + _hurt_knockback_velocity, 0.0)
 		return
+	if absf(_hurt_knockback_velocity) > 0.4:
+		var kdx := _hurt_knockback_velocity * delta
+		if absf(kdx) > 0.001 and not _would_hit_side(kdx):
+			global_position.x += kdx
+		_hurt_knockback_velocity = move_toward(_hurt_knockback_velocity, 0.0, hurt_knockback_decay * delta)
 	var dx := move_x * delta
 	var blocked_side := _would_hit_side(dx) if absf(dx) > 0.001 else false
 	if absf(dx) > 0.001 and not blocked_side:
@@ -626,7 +849,7 @@ func _move_character(move_x: float, delta: float) -> void:
 			_vertical_velocity = 0.0
 		else:
 			global_position.y += dy
-	velocity = Vector2(move_x, _vertical_velocity)
+	velocity = Vector2(move_x + _hurt_knockback_velocity, _vertical_velocity)
 
 func _has_floor_beneath() -> bool:
 	var left := global_position + Vector2(-collider_half_width, surface_foot_offset + 2.0)
@@ -746,14 +969,19 @@ func _update_visuals() -> void:
 	var base_scale := body_visual_scale
 	if not body:
 		return
-	if velocity.length() > 2.0:
+	var horizontal_speed := absf(velocity.x)
+	if horizontal_speed > 6.0:
+		var move_intensity := clampf(horizontal_speed / maxf(1.0, move_speed), 0.35, 1.2)
+		var walk_wave := sin(_time_alive * walk_bob_frequency)
 		body.scale.x = -(base_scale * body_width_scale) if velocity.x < 0.0 else (base_scale * body_width_scale)
-		body.position.y = sin(_time_alive * 15.0) * 2.5
-		body.rotation = sin(_time_alive * 14.0) * 0.05
-		body.scale.y = base_scale + sin(_time_alive * 15.0) * 0.04
+		body.position.y = body_visual_y_offset + walk_baseline_offset + walk_wave * walk_bob_amplitude * move_intensity
+		body.rotation = sin(_time_alive * walk_tilt_frequency) * walk_tilt_amplitude * move_intensity
+		if _mode == BobMode.ATTACK:
+			body.rotation += attack_lean_radians * signf(velocity.x)
+		body.scale.y = base_scale - absf(walk_wave) * walk_squash_amplitude * move_intensity
 	else:
-		body.position.y = sin(_time_alive * 5.0) * 1.0
-		body.rotation = sin(_time_alive * 5.0) * 0.012
+		body.position.y = body_visual_y_offset + sin(_time_alive * idle_bob_frequency) * idle_bob_amplitude
+		body.rotation = sin(_time_alive * idle_tilt_frequency) * idle_tilt_amplitude
 		body.scale.y = base_scale
 	var mode_tint := Color(0.48, 0.9, 0.62, 1.0) if _mode == BobMode.FRIENDLY else Color(1.0, 0.36, 0.36, 1.0)
 	if hunger < 30.0:
@@ -771,12 +999,12 @@ func receive_food(amount: int) -> void:
 	_action_text = "eating food from player"
 
 func _try_bite_player(delta: float) -> void:
-	var bite_hunger_max := 46.0 if _mode == BobMode.ATTACK else 35.0
+	var bite_hunger_max := bite_attack_hunger_max if _mode == BobMode.ATTACK else bite_friendly_hunger_max
 	if hunger > bite_hunger_max:
 		return
 	if not _player or not _manager:
 		return
-	if global_position.distance_to(_player.global_position) > 60.0:
+	if global_position.distance_to(_player.global_position) > bite_contact_range:
 		return
 	_manager.damage_player(5.4 * delta)
 	hunger = minf(100.0, hunger + 9.0 * delta)
@@ -789,15 +1017,15 @@ func _try_annoy_player(delta: float) -> void:
 	if not _player or not _manager:
 		return
 	var dist := global_position.distance_to(_player.global_position)
-	if dist > 58.0:
+	if dist > attack_annoy_distance:
 		return
 	if _manager.has_method("is_bob_sabotage_suppressed") and _manager.is_bob_sabotage_suppressed():
 		return
 	# Discrete chip damage each proc (delta was too small to feel).
-	var chip := 2.9 if _mode == BobMode.ATTACK else 2.1
+	var chip := attack_annoy_damage if _mode == BobMode.ATTACK else friendly_annoy_damage
 	_manager.damage_player(chip)
 	trust_to_player = maxf(0.0, trust_to_player - 2.4)
-	_last_annoy_tick = 0.28 if _mode == BobMode.ATTACK else 0.38
+	_last_annoy_tick = attack_annoy_cooldown if _mode == BobMode.ATTACK else friendly_annoy_cooldown
 	if hunger < 68.0:
 		_action_text = "harassing player at close range"
 
@@ -808,31 +1036,52 @@ func _try_shove_player(delta: float) -> void:
 		return
 	if _manager.has_method("is_bob_sabotage_suppressed") and _manager.is_bob_sabotage_suppressed():
 		return
-	if global_position.distance_to(_player.global_position) > 72.0:
+	var dist := global_position.distance_to(_player.global_position)
+	if dist > attack_shove_range or dist < attack_shove_min_distance:
 		return
 	if not _player.has_method("apply_bob_shove"):
 		return
+	var in_kill_window := hunger <= bite_attack_hunger_max and dist <= bite_contact_range
+	var shove_strength := attack_shove_strength
+	var shove_cooldown := attack_shove_cooldown
+	if not in_kill_window:
+		shove_strength *= attack_shove_harass_strength_multiplier
+		shove_cooldown = attack_shove_harass_cooldown
 	var dir := signf(_player.global_position.x - global_position.x)
 	if dir == 0.0:
 		dir = 1.0 if _rng.randf() < 0.5 else -1.0
-	_player.apply_bob_shove(dir, 310.0)
-	_shove_player_timer = 2.6
+	_player.apply_bob_shove(dir, shove_strength)
+	_shove_player_timer = maxf(attack_shove_cooldown_floor, shove_cooldown)
 	trust_to_player = maxf(0.0, trust_to_player - 1.8)
 	curiosity = minf(100.0, curiosity + 3.5)
-	_action_text = "shoving you out of the way"
+	_action_text = "shoving you aggressively" if not in_kill_window else "shoving you out of the way"
 
-func receive_damage(amount: float) -> void:
+func receive_damage(amount: float, hit_direction_x: float = 0.0, knockback_strength: float = 230.0) -> void:
+	if amount <= 0.0:
+		return
 	health = clampf(health - amount, 0.0, max_health)
 	safety = maxf(0.0, safety - amount * 0.6)
 	hunger = maxf(0.0, hunger - amount * 0.25)
 	trust_to_player = maxf(0.0, trust_to_player - amount * 0.9)
 	affection = maxf(0.0, affection - amount * 0.6)
 	_action_text = "angry after being hit!"
-	if _player:
-		var kick := signf(global_position.x - _player.global_position.x)
-		if kick == 0.0:
-			kick = 1.0 if _rng.randf() < 0.5 else -1.0
-		global_position.x += kick * 14.0
+	var kick := hit_direction_x
+	if kick == 0.0 and _player:
+		kick = signf(global_position.x - _player.global_position.x)
+	if kick == 0.0:
+		kick = 1.0 if _rng.randf() < 0.5 else -1.0
+	_apply_hurt_knockback(kick, knockback_strength)
+	global_position.x += kick * 14.0
+
+func _apply_hurt_knockback(direction_x: float, strength: float) -> void:
+	var dir := signf(direction_x)
+	if dir == 0.0:
+		return
+	_hurt_knockback_velocity = clampf(
+		_hurt_knockback_velocity + dir * strength,
+		-hurt_knockback_max_speed,
+		hurt_knockback_max_speed
+	)
 
 func get_life_debug_snapshot() -> Dictionary:
 	return {

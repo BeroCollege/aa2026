@@ -4,7 +4,7 @@ extends Area2D
 
 const TEX_RIPE := preload("res://assets/food/berry_bush_ripe.png")
 const TEX_HARVESTED := preload("res://assets/food/berry_bush_harvested.png")
-const GROUND_SINK_PX := 4.0
+const GROUND_SINK_PX := 6.0
 
 @export var base_food_yield: int = 2
 @export var regrow_seconds: float = 12.0
