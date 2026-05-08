@@ -4,8 +4,8 @@ extends Node2D
 ## Craft is opened with **C / F (craft_tool)** only when the pause menu is closed.
 
 @onready var _manager = $GameManager
-@onready var _bob: CharacterBody2D = $Bob
 @onready var _player: CharacterBody2D = $Player
+@onready var _bob: CharacterBody2D = $Bob
 @onready var _door: Area2D = $Door
 @onready var _chest: Area2D = $Chest
 @onready var _hazard: Area2D = $HazardZone
@@ -26,16 +26,12 @@ extends Node2D
 @onready var _pause_current_label: Label = $CanvasLayer/PauseMenu/VBox/CurrentLabel
 @onready var _pause_keybinds_label: Label = $CanvasLayer/PauseMenu/VBox/Scroll/KeybindsLabel
 @onready var _pause_resume_button: Button = $CanvasLayer/PauseMenu/VBox/ResumeButton
+@onready var _pause_restart_button: Button = $CanvasLayer/PauseMenu/VBox/RestartButton
 @onready var _status_panel: Panel = $CanvasLayer/StatusPanel
-@onready var _slot_wood: Label = $CanvasLayer/MaterialCounter/WoodCount
-@onready var _slot_stone: Label = $CanvasLayer/MaterialCounter/StoneCount
-@onready var _slot_food: Label = $CanvasLayer/MaterialCounter/FoodCount
-@onready var _slot_sword: Label = $CanvasLayer/Hotbar/SlotSword/Count
-@onready var _slot_pickaxe: Label = $CanvasLayer/Hotbar/SlotPickaxe/Count
-@onready var _slot_axe: Label = $CanvasLayer/Hotbar/SlotAxe/Count
-@onready var _slot_shovel: Label = $CanvasLayer/Hotbar/SlotShovel/Count
-@onready var _slot_hoe: Label = $CanvasLayer/Hotbar/SlotHoe/Count
-@onready var _slot_seeds: Label = $CanvasLayer/MaterialCounter/SeedsCount
+var _slot_wood: Label
+var _slot_stone: Label
+var _slot_food: Label
+var _slot_seeds: Label
 @onready var _panel_sword: Panel = $CanvasLayer/Hotbar/SlotSword
 @onready var _panel_pickaxe: Panel = $CanvasLayer/Hotbar/SlotPickaxe
 @onready var _panel_axe: Panel = $CanvasLayer/Hotbar/SlotAxe
@@ -62,7 +58,6 @@ var _survival_sec: float = 0.0
 var _survival_last_display_bucket: int = -1
 var _place_indicator: Label
 var _slot_dirt_label: Label
-var _slot_grass_label: Label
 var _slot_reinforced_label: Label
 var _slot_totems_label: Label
 var _craft_shovel_button: Button
@@ -73,6 +68,20 @@ var _upgrade_axe_button: Button
 var _upgrade_sword_button: Button
 var _upgrade_hoe_button: Button
 var _upgrade_shovel_button: Button
+const TREE_SCENE := preload("res://scenes/TreeNode.tscn")
+const BERRY_BUSH_SCENE := preload("res://scenes/BerryBush.tscn")
+@export var decoration_stream_margin_tiles: int = 40
+@export var tree_spawn_interval_tiles: int = 12
+@export var tree_min_spacing_tiles: int = 8
+@export_range(0.0, 1.0, 0.01) var tree_big_probability: float = 0.5
+@export var tree_big_scale: float = 0.43
+@export var tree_small_scale: float = 0.40
+@export var berry_spawn_interval_tiles: int = 9
+@export var berry_min_spacing_tiles: int = 3
+var _tree_spawned_cells: Dictionary = {}
+var _berry_spawned_cells: Dictionary = {}
+var _deco_stream_min_cell_x: int = 0
+var _deco_stream_max_cell_x: int = -1
 var _cloud_textures: Array[Texture2D] = [
 	preload("res://assets/blockpack/clouds/cloud_1.png"),
 	preload("res://assets/blockpack/clouds/cloud_2.png"),
@@ -149,14 +158,15 @@ func _physics_process(_delta: float) -> void:
 		var ax := minf(_player.global_position.x, _bob.global_position.x)
 		var bx := maxf(_player.global_position.x, _bob.global_position.x)
 		_world_tiles.ensure_streaming_around_world(ax, bx)
+		_stream_decorations_around_world(ax, bx)
 
 func _ready() -> void:
 	_configure_infinite_world_bounds()
 	_create_background_layers()
 	# Keep baseline world clean/flat for now: trees only, no extra surface clutter.
-	_spawn_decorations()
 	_snap_core_actors_to_surface()
 	_snap_world_props_to_surface()
+	_spawn_decorations()
 	# Back-to-basics world: flat terrain only, no extra world clutter.
 	_door.visible = false
 	_chest.visible = false
@@ -174,8 +184,8 @@ func _ready() -> void:
 	$CanvasLayer/CraftMenu/CraftMealButton.pressed.connect(_on_craft_meal_pressed)
 	$CanvasLayer/CraftMenu/CloseCraftButton.pressed.connect(_close_craft_menu)
 	_status_panel.visible = false
-	_create_overhead_status(_player)
-	_create_overhead_status(_bob)
+	_create_overhead_status(_player, 6)
+	_create_overhead_status(_bob, 10)
 	_create_debug_label()
 	_update_debug_label()
 	_create_bob_debug_label()
@@ -183,11 +193,13 @@ func _ready() -> void:
 	_extend_material_counter_ui()
 	_extend_craft_menu_ui()
 	_apply_tool_strip_icons()
+	_configure_hotbar_tool_key_hints()
 	_pause_menu.visible = false
 	get_tree().paused = false
 	_pause_keybinds_label.text = _build_keybinds_help()
 	_pause_menu.resume_requested.connect(_close_pause_menu)
 	_pause_resume_button.pressed.connect(_close_pause_menu)
+	_pause_restart_button.pressed.connect(_on_restart_pressed)
 	if _manager.debug_mode_enabled and _player.has_method("apply_debug_default_tool"):
 		call_deferred("_deferred_debug_default_tool")
 	_reset_survival_timer()
@@ -228,6 +240,80 @@ func _apply_tool_strip_icons() -> void:
 		var craft_icon := get_node_or_null(craft[c]) as TextureRect
 		if craft_icon:
 			craft_icon.texture = ToolStripIcons.atlas_texture_for_tool(c)
+
+
+func _configure_hotbar_tool_key_hints() -> void:
+	var slots: Array = [
+		[_panel_sword, "1"],
+		[_panel_pickaxe, "2"],
+		[_panel_axe, "3"],
+		[_panel_shovel, "4"],
+		[_panel_hoe, "5"],
+	]
+	for entry in slots:
+		var panel: Panel = entry[0]
+		var digit: String = entry[1]
+		if not panel:
+			continue
+		var existing := panel.get_node_or_null("HotkeyHint") as Label
+		if existing:
+			existing.text = digit
+			existing.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			existing.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+			existing.offset_left = -30.0
+			existing.offset_top = -26.0
+			existing.offset_right = -5.0
+			existing.offset_bottom = -4.0
+			_style_hotbar_key_hint_label(existing)
+			continue
+		var hint := Label.new()
+		hint.name = "HotkeyHint"
+		hint.text = digit
+		hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		hint.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		# Keeps bitmap pixel font sharp (linear filtering makes tiny glyphs look smeared).
+		hint.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		hint.offset_left = -30.0
+		hint.offset_top = -26.0
+		hint.offset_right = -5.0
+		hint.offset_bottom = -4.0
+		_style_hotbar_key_hint_label(hint)
+		panel.add_child(hint)
+
+
+func _style_hotbar_key_hint_label(hint: Label) -> void:
+	_apply_mc_font(hint, 12)
+	hint.add_theme_color_override("font_color", Color(0.98, 0.94, 0.78, 1.0))
+	hint.add_theme_color_override("font_outline_color", Color(0.06, 0.07, 0.1, 1.0))
+	hint.add_theme_constant_override("outline_size", 5)
+
+
+func _update_hotbar_tool_visibility() -> void:
+	if not _manager:
+		return
+	_panel_sword.visible = int(_manager.inventory.get("sword", 0)) >= 1
+	_panel_pickaxe.visible = int(_manager.inventory.get("pickaxe", 0)) >= 1
+	_panel_axe.visible = int(_manager.inventory.get("axe", 0)) >= 1
+	_panel_shovel.visible = int(_manager.inventory.get("shovel", 0)) >= 1
+	_panel_hoe.visible = int(_manager.inventory.get("hoe", 0)) >= 1
+	var hotbar_root := _panel_sword.get_parent() as Control
+	if hotbar_root:
+		hotbar_root.visible = (
+			_panel_sword.visible
+			or _panel_pickaxe.visible
+			or _panel_axe.visible
+			or _panel_shovel.visible
+			or _panel_hoe.visible
+		)
+
+
+func _apply_hotbar_slot_modulate(panel: Panel, tool_name: String, selected_tool: String, lit: Color, dim: Color) -> void:
+	if not panel.visible:
+		return
+	panel.modulate = lit if selected_tool == tool_name else dim
+
 
 func _create_background_layers() -> void:
 	if _background_root:
@@ -369,57 +455,97 @@ func _spawn_crops() -> void:
 		_crop_container.add_child(crop)
 
 func _spawn_decorations() -> void:
-	const TREE_MIN_HORIZONTAL_SPACING := 512.0
-	const TREE_SPAWN_MAX_ATTEMPTS := 120
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
-	var tree_scene := preload("res://scenes/TreeNode.tscn")
-	var world_root_y: float = _world_tiles.get_surface_world_position_at_x(0.0).y
-	var spawned_x: Array[float] = []
-	for _i in range(TREE_SPAWN_MAX_ATTEMPTS):
-		var base_pos: Vector2 = _world_tiles.get_random_surface_world_position(rng)
-		# Keep decorations near the upper surface band so composition stays clean.
-		if base_pos.y > world_root_y + 120.0:
-			continue
-		var too_close := false
-		for x in spawned_x:
-			if absf(base_pos.x - x) < TREE_MIN_HORIZONTAL_SPACING:
-				too_close = true
-				break
-		if too_close:
-			continue
-		var tree := tree_scene.instantiate() as Area2D
-		tree.global_position = base_pos
-		_resource_container.add_child(tree)
-		spawned_x.append(tree.global_position.x)
-	_spawn_berry_bushes()
+	if not _world_tiles or not _player:
+		return
+	var px := _player.global_position.x
+	var ax := px
+	var bx := px
+	if _bob:
+		ax = minf(px, _bob.global_position.x)
+		bx = maxf(px, _bob.global_position.x)
+	_world_tiles.ensure_streaming_around_world(ax, bx)
+	_stream_decorations_around_world(px, px)
 
 func _spawn_berry_bushes() -> void:
-	const MIN_SPACING := 128.0
-	const MAX_ATTEMPTS := 160
-	const TARGET_COUNT := 18
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 246801
-	var bush_scene := preload("res://scenes/BerryBush.tscn")
-	var world_root_y: float = _world_tiles.get_surface_world_position_at_x(0.0).y
-	var spawned_x: Array[float] = []
-	for _i in range(MAX_ATTEMPTS):
-		if spawned_x.size() >= TARGET_COUNT:
-			break
-		var base_pos: Vector2 = _world_tiles.get_random_surface_world_position(rng)
-		if base_pos.y > world_root_y + 140.0:
-			continue
-		var too_close := false
-		for x in spawned_x:
-			if absf(base_pos.x - x) < MIN_SPACING:
-				too_close = true
-				break
-		if too_close:
-			continue
-		var bush: Area2D = bush_scene.instantiate() as Area2D
-		bush.global_position = base_pos
+	# Kept for compatibility; decoration spawning is handled by streaming now.
+	pass
+
+func _stream_decorations_around_world(min_world_x: float, max_world_x: float) -> void:
+	var min_cell: Vector2i = _world_tiles.world_to_cell(Vector2(min_world_x, _world_tiles.global_position.y))
+	var max_cell: Vector2i = _world_tiles.world_to_cell(Vector2(max_world_x, _world_tiles.global_position.y))
+	var min_cell_x: int = min_cell.x
+	var max_cell_x: int = max_cell.x
+	var margin: int = maxi(0, int(decoration_stream_margin_tiles))
+	var need_min: int = min_cell_x - margin
+	var need_max: int = max_cell_x + margin
+	if _deco_stream_max_cell_x < _deco_stream_min_cell_x:
+		for cx in range(need_min, need_max + 1):
+			_try_spawn_decorations_at_cell(cx)
+		_deco_stream_min_cell_x = need_min
+		_deco_stream_max_cell_x = need_max
+		return
+	if need_min < _deco_stream_min_cell_x:
+		for cx in range(need_min, _deco_stream_min_cell_x):
+			_try_spawn_decorations_at_cell(cx)
+		_deco_stream_min_cell_x = need_min
+	if need_max > _deco_stream_max_cell_x:
+		for cx in range(_deco_stream_max_cell_x + 1, need_max + 1):
+			_try_spawn_decorations_at_cell(cx)
+		_deco_stream_max_cell_x = need_max
+
+func _try_spawn_decorations_at_cell(cell_x: int) -> void:
+	if not _world_tiles.has_surface_column(cell_x):
+		return
+	if _should_spawn_tree_at_cell(cell_x):
+		var tree := TREE_SCENE.instantiate() as Area2D
+		var variant := _pick_tree_variant(cell_x)
+		tree.set("variant", variant)
+		tree.set("full_tree_scale", tree_big_scale if variant == 2 else tree_small_scale)
+		tree.global_position = _world_tiles.get_surface_world_position_at_column_x(cell_x)
+		_resource_container.add_child(tree)
+		_tree_spawned_cells[cell_x] = true
+	if _should_spawn_berry_at_cell(cell_x):
+		var bush: Area2D = BERRY_BUSH_SCENE.instantiate() as Area2D
+		bush.global_position = _world_tiles.get_surface_world_position_at_column_x(cell_x)
 		_resource_container.add_child(bush)
-		spawned_x.append(bush.global_position.x)
+		_berry_spawned_cells[cell_x] = true
+
+func _should_spawn_tree_at_cell(cell_x: int) -> bool:
+	if _tree_spawned_cells.has(cell_x):
+		return false
+	if tree_spawn_interval_tiles <= 0:
+		return false
+	if not _passes_hash_interval(cell_x, tree_spawn_interval_tiles, 0x31A5):
+		return false
+	return not _has_nearby_spawn(_tree_spawned_cells, cell_x, max(1, tree_min_spacing_tiles))
+
+func _should_spawn_berry_at_cell(cell_x: int) -> bool:
+	if _berry_spawned_cells.has(cell_x):
+		return false
+	if berry_spawn_interval_tiles <= 0:
+		return false
+	if not _passes_hash_interval(cell_x, berry_spawn_interval_tiles, 0x7F4D):
+		return false
+	return not _has_nearby_spawn(_berry_spawned_cells, cell_x, max(1, berry_min_spacing_tiles))
+
+func _passes_hash_interval(cell_x: int, interval: int, salt: int) -> bool:
+	var value := int(absi(cell_x * 73856093 + salt))
+	return posmod(value, interval) == 0
+
+func _hash_0_1(cell_x: int, salt: int) -> float:
+	var value := int(absi(cell_x * 19349663 + salt))
+	return float(posmod(value, 10_000)) / 10_000.0
+
+func _pick_tree_variant(cell_x: int) -> int:
+	# Keep deterministic distribution stable across runs.
+	# Matches TreeVariant enum in `scripts/tree_node.gd`: 1=SMALL, 2=BIG.
+	return 2 if _hash_0_1(cell_x, 0x2D77) < clampf(tree_big_probability, 0.0, 1.0) else 1
+
+func _has_nearby_spawn(spawned_cells: Dictionary, center_cell_x: int, spacing_tiles: int) -> bool:
+	for dx in range(-spacing_tiles, spacing_tiles + 1):
+		if spawned_cells.has(center_cell_x + dx):
+			return true
+	return false
 
 func _snap_core_actors_to_surface() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -600,7 +726,7 @@ func _update_status_icons() -> void:
 		bob_health_max = float(_bob.get("max_health"))
 	_update_actor_overhead(_bob, bob_health, bob_hunger, bob_health_max)
 
-func _create_overhead_status(actor: Node2D) -> void:
+func _create_overhead_status(actor: Node2D, heart_segments: int = 6) -> void:
 	if not actor:
 		return
 	var root := Node2D.new()
@@ -609,7 +735,7 @@ func _create_overhead_status(actor: Node2D) -> void:
 	actor.add_child(root)
 	var hearts: Array[Sprite2D] = []
 	var hunger: Array[Sprite2D] = []
-	for i in range(6):
+	for i in range(heart_segments):
 		var heart := Sprite2D.new()
 		heart.texture = _heart_full
 		heart.position = Vector2(float(i) * 18.0, 0.0)
@@ -623,7 +749,7 @@ func _create_overhead_status(actor: Node2D) -> void:
 		drum.scale = Vector2(1.35, 1.35)
 		root.add_child(drum)
 		hunger.append(drum)
-	_overhead_hud[actor] = {"root": root, "hearts": hearts, "hunger": hunger}
+	_overhead_hud[actor] = {"root": root, "hearts": hearts, "hunger": hunger, "heart_segments": heart_segments}
 
 func _update_actor_overhead(actor: Node2D, health_value: float, hunger_value: float, health_max: float = 100.0) -> void:
 	if not actor:
@@ -632,7 +758,8 @@ func _update_actor_overhead(actor: Node2D, health_value: float, hunger_value: fl
 		return
 	var ui: Dictionary = _overhead_hud[actor]
 	var hm := maxf(health_max, 1.0)
-	var health_units := int(round(clampf(health_value / hm, 0.0, 1.0) * 6.0))
+	var segments := int(ui.get("heart_segments", 6))
+	var health_units := int(round(clampf(health_value / hm, 0.0, 1.0) * float(segments)))
 	var hunger_units := int(round((clampf(hunger_value, 0.0, 100.0) / 100.0) * 6.0))
 	var hearts: Array = ui.get("hearts", [])
 	var hunger: Array = ui.get("hunger", [])
@@ -650,15 +777,8 @@ func _update_hotbar_counts() -> void:
 	_slot_stone.text = str(_manager.inventory["stone"])
 	_slot_food.text = str(_manager.inventory["food"])
 	_slot_seeds.text = str(_manager.inventory["seeds"])
-	_slot_sword.text = _hotbar_tool_label("sword")
-	_slot_pickaxe.text = _hotbar_tool_label("pickaxe")
-	_slot_axe.text = _hotbar_tool_label("axe")
-	_slot_shovel.text = _hotbar_tool_label("shovel")
-	_slot_hoe.text = _hotbar_tool_label("hoe")
 	if _slot_dirt_label:
 		_slot_dirt_label.text = str(_manager.inventory.get("dirt", 0))
-	if _slot_grass_label:
-		_slot_grass_label.text = str(_manager.inventory.get("grass_block", 0))
 	if _slot_reinforced_label:
 		_slot_reinforced_label.text = str(_manager.inventory.get("reinforced", 0))
 	if _slot_totems_label:
@@ -667,23 +787,20 @@ func _update_hotbar_counts() -> void:
 		var pk: String = _player.get_place_kind()
 		var count: int = int(_manager.inventory.get(pk, 0))
 		_place_indicator.text = "Place: %s x%d" % [pk, count]
+	_update_hotbar_tool_visibility()
 
 func _update_hotbar_selection() -> void:
 	if not _player or not _player.has_method("get_selected_tool"):
 		return
 	var selected_tool: String = _player.get_selected_tool()
-	_panel_sword.modulate = Color(1.0, 1.0, 1.0, 1.0) if selected_tool == "sword" else Color(0.75, 0.75, 0.75, 1.0)
-	_panel_pickaxe.modulate = Color(1.0, 1.0, 1.0, 1.0) if selected_tool == "pickaxe" else Color(0.75, 0.75, 0.75, 1.0)
-	_panel_axe.modulate = Color(1.0, 1.0, 1.0, 1.0) if selected_tool == "axe" else Color(0.75, 0.75, 0.75, 1.0)
-	_panel_shovel.modulate = Color(1.0, 1.0, 1.0, 1.0) if selected_tool == "shovel" else Color(0.75, 0.75, 0.75, 1.0)
-	_panel_hoe.modulate = Color(1.0, 1.0, 1.0, 1.0) if selected_tool == "hoe" else Color(0.75, 0.75, 0.75, 1.0)
+	var lit := Color(1.0, 1.0, 1.0, 1.0)
+	var dim := Color(0.75, 0.75, 0.75, 1.0)
+	_apply_hotbar_slot_modulate(_panel_sword, "sword", selected_tool, lit, dim)
+	_apply_hotbar_slot_modulate(_panel_pickaxe, "pickaxe", selected_tool, lit, dim)
+	_apply_hotbar_slot_modulate(_panel_axe, "axe", selected_tool, lit, dim)
+	_apply_hotbar_slot_modulate(_panel_shovel, "shovel", selected_tool, lit, dim)
+	_apply_hotbar_slot_modulate(_panel_hoe, "hoe", selected_tool, lit, dim)
 
-func _hotbar_tool_label(tool: String) -> String:
-	var wx: GameManager = _manager as GameManager
-	var n := str(_manager.inventory.get(tool, 0))
-	if wx and wx.get_tool_tier(tool) >= 1:
-		return "%s★" % n
-	return n
 
 func _on_craft_tool_pressed() -> void:
 	var wx: GameManager = _manager as GameManager
@@ -797,73 +914,150 @@ func _extend_material_counter_ui() -> void:
 	var mc := get_node_or_null("CanvasLayer/MaterialCounter") as Panel
 	if not mc:
 		return
-	# Roomier panel so we can host place indicator + new material rows.
+	for c in mc.get_children():
+		c.queue_free()
+	mc.add_theme_stylebox_override("panel", _material_panel_style())
 	mc.offset_left = 16.0
-	mc.offset_top = 540.0
-	mc.offset_right = 320.0
+	mc.offset_top = 528.0
+	# Wider than chip row (4×74 + gaps) so "Place:" and hints are not clipped at the left edge.
+	mc.offset_right = 440.0
 	mc.offset_bottom = 712.0
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	mc.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	margin.add_child(vb)
+	vb.add_theme_constant_override("separation", 6)
 
 	_place_indicator = Label.new()
 	_place_indicator.name = "PlaceIndicator"
-	_place_indicator.position = Vector2(10.0, 6.0)
-	_place_indicator.size = Vector2(290.0, 20.0)
+	_place_indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_place_indicator.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_place_indicator.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_place_indicator.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_apply_mc_font(_place_indicator, 11)
+	_apply_mc_label_outline(_place_indicator)
 	_place_indicator.add_theme_color_override("font_color", Color(0.95, 0.92, 0.55, 1.0))
-	_place_indicator.add_theme_font_size_override("font_size", 13)
-	mc.add_child(_place_indicator)
+	vb.add_child(_place_indicator)
 
-	var hint := Label.new()
-	hint.name = "PlaceHint"
-	hint.position = Vector2(10.0, 26.0)
-	hint.size = Vector2(290.0, 18.0)
-	hint.add_theme_color_override("font_color", Color(0.78, 0.84, 0.95, 1.0))
-	hint.add_theme_font_size_override("font_size", 11)
-	hint.text = "[S/LMB] mine  [X] cycle place  [V] place  [T] place totem"
-	mc.add_child(hint)
+	var hint1 := Label.new()
+	hint1.name = "PlaceHintRow1"
+	hint1.text = "[S/LMB] mine    [X] cycle place"
+	_apply_mc_font(hint1, 9)
+	_apply_mc_label_outline(hint1)
+	hint1.add_theme_color_override("font_color", Color(0.78, 0.84, 0.95, 1.0))
+	vb.add_child(hint1)
 
-	# Reposition existing wood/stone/food labels into the new layout.
-	_relabel_existing_material(mc, "WoodLabel", "WoodCount", "Wood:", Vector2(10.0, 50.0))
-	_relabel_existing_material(mc, "StoneLabel", "StoneCount", "Stone:", Vector2(10.0, 70.0))
-	_relabel_existing_material(mc, "FoodLabel", "FoodCount", "Food:", Vector2(10.0, 90.0))
-	_relabel_existing_material(mc, "SeedsLabel", "SeedsCount", "Seeds:", Vector2(10.0, 110.0))
+	var hint2 := Label.new()
+	hint2.name = "PlaceHintRow2"
+	hint2.text = "[V] place    [T] place totem"
+	_apply_mc_font(hint2, 9)
+	_apply_mc_label_outline(hint2)
+	hint2.add_theme_color_override("font_color", Color(0.78, 0.84, 0.95, 1.0))
+	vb.add_child(hint2)
 
-	_slot_dirt_label = _add_material_row(mc, "Dirt:", Vector2(160.0, 50.0))
-	_slot_grass_label = _add_material_row(mc, "Grass:", Vector2(160.0, 70.0))
-	_slot_reinforced_label = _add_material_row(mc, "Wall:", Vector2(160.0, 90.0))
-	_slot_totems_label = _add_material_row(mc, "Totems:", Vector2(160.0, 110.0))
+	var row1 := HBoxContainer.new()
+	row1.add_theme_constant_override("separation", 8)
+	vb.add_child(row1)
 
-func _relabel_existing_material(mc: Panel, label_name: String, count_name: String, text: String, label_pos: Vector2) -> void:
-	var lbl := mc.get_node_or_null(label_name) as Label
-	if lbl:
-		lbl.position = label_pos
-		lbl.size = Vector2(70.0, 18.0)
-		lbl.text = text
-		lbl.offset_left = label_pos.x
-		lbl.offset_top = label_pos.y
-		lbl.offset_right = label_pos.x + 70.0
-		lbl.offset_bottom = label_pos.y + 18.0
-	var cnt := mc.get_node_or_null(count_name) as Label
-	if cnt:
-		var count_pos := label_pos + Vector2(70.0, 0.0)
-		cnt.position = count_pos
-		cnt.size = Vector2(60.0, 18.0)
-		cnt.offset_left = count_pos.x
-		cnt.offset_top = count_pos.y
-		cnt.offset_right = count_pos.x + 60.0
-		cnt.offset_bottom = count_pos.y + 18.0
+	_slot_wood = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_wood.png"))
+	_slot_stone = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_stone.png"))
+	_slot_food = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_food.png"))
+	_slot_seeds = _make_inventory_chip(row1, preload("res://assets/blockpack/tile_grass.png"))
 
-func _add_material_row(mc: Panel, prefix: String, label_pos: Vector2) -> Label:
-	var lbl := Label.new()
-	lbl.text = prefix
-	lbl.position = label_pos
-	lbl.size = Vector2(70.0, 18.0)
-	lbl.add_theme_font_size_override("font_size", 12)
-	mc.add_child(lbl)
+	var row2 := HBoxContainer.new()
+	row2.add_theme_constant_override("separation", 8)
+	vb.add_child(row2)
+
+	_slot_dirt_label = _make_inventory_chip(row2, preload("res://assets/blockpack/tile_dirt.png"))
+	_slot_reinforced_label = _make_inventory_chip(
+		row2, preload("res://assets/blockpack/tile_stone.png"), Color(0.72, 0.78, 1.0)
+	)
+	_slot_totems_label = _make_inventory_chip(row2, preload("res://assets/blockpack/door_closed.png"))
+
+
+func _material_panel_style() -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.06, 0.07, 0.09, 0.88)
+	s.border_width_left = 2
+	s.border_width_top = 2
+	s.border_width_right = 2
+	s.border_width_bottom = 2
+	s.border_color = Color(0.35, 0.38, 0.45, 0.95)
+	s.corner_radius_top_left = 10
+	s.corner_radius_top_right = 10
+	s.corner_radius_bottom_right = 10
+	s.corner_radius_bottom_left = 10
+	s.content_margin_left = 4.0
+	s.content_margin_top = 4.0
+	s.content_margin_right = 4.0
+	s.content_margin_bottom = 4.0
+	return s
+
+
+func _inventory_chip_style() -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.11, 0.13, 0.17, 0.96)
+	s.border_width_left = 1
+	s.border_width_top = 1
+	s.border_width_right = 1
+	s.border_width_bottom = 1
+	s.border_color = Color(0.28, 0.32, 0.4, 1)
+	s.corner_radius_top_left = 6
+	s.corner_radius_top_right = 6
+	s.corner_radius_bottom_right = 6
+	s.corner_radius_bottom_left = 6
+	s.content_margin_left = 5.0
+	s.content_margin_top = 4.0
+	s.content_margin_right = 6.0
+	s.content_margin_bottom = 4.0
+	return s
+
+
+func _mc_pixel_font() -> Font:
+	return load("res://assets/fonts/PressStart2P-Regular.ttf") as Font
+
+
+func _apply_mc_font(lbl: Label, pt: int) -> void:
+	var f := _mc_pixel_font()
+	if f:
+		lbl.add_theme_font_override("font", f)
+	lbl.add_theme_font_size_override("font_size", pt)
+	lbl.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+
+func _apply_mc_label_outline(lbl: Label) -> void:
+	lbl.add_theme_color_override("font_outline_color", Color(0.06, 0.07, 0.1, 1.0))
+	lbl.add_theme_constant_override("outline_size", 4)
+
+
+func _make_inventory_chip(parent: Control, tex: Texture2D, icon_mod: Color = Color.WHITE) -> Label:
+	var chip := Panel.new()
+	chip.custom_minimum_size = Vector2(74, 32)
+	chip.add_theme_stylebox_override("panel", _inventory_chip_style())
+	var hb := HBoxContainer.new()
+	hb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	chip.add_child(hb)
+	hb.add_theme_constant_override("separation", 6)
+	var icon := TextureRect.new()
+	icon.texture = tex
+	icon.modulate = icon_mod
+	icon.custom_minimum_size = Vector2(22, 22)
+	icon.expand_mode = 1
+	icon.stretch_mode = 5
 	var cnt := Label.new()
 	cnt.text = "0"
-	cnt.position = label_pos + Vector2(70.0, 0.0)
-	cnt.size = Vector2(60.0, 18.0)
-	cnt.add_theme_font_size_override("font_size", 12)
-	mc.add_child(cnt)
+	cnt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_apply_mc_font(cnt, 11)
+	hb.add_child(icon)
+	hb.add_child(cnt)
+	parent.add_child(chip)
 	return cnt
 
 func _extend_craft_menu_ui() -> void:

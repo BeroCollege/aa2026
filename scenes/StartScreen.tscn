@@ -1,6 +1,22 @@
-[gd_scene format=3 uid="uid://dfg40rxcd6nsu"]
+[gd_scene load_steps=5 format=3 uid="uid://dfg40rxcd6nsu"]
 
 [ext_resource type="Script" path="res://scripts/start_screen.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/ui/bob_attack_start_screen.png" id="2_texture"]
+[ext_resource type="FontFile" path="res://assets/fonts/PressStart2P-Regular.ttf" id="3_font"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_clear"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_focus"]
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.98, 0.88, 0.45, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="StartScreen" type="Control"]
 layout_mode = 3
@@ -11,7 +27,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_script")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="BackgroundImage" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -19,51 +35,95 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.22, 0.42, 0.62, 1)
+texture = ExtResource("2_texture")
+stretch_mode = 6
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="MenuAnchor" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.89
+anchor_right = 0.5
+anchor_bottom = 0.89
+offset_left = -280.0
+offset_top = -100.0
+offset_right = 280.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Menu" type="VBoxContainer" parent="MenuAnchor"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/separation = 14
 
-[node name="Layout" type="VBoxContainer" parent="Center"]
-custom_minimum_size = Vector2(440, 0)
-theme_override_constants/separation = 20
+[node name="BtnStart" type="Button" parent="MenuAnchor/Menu"]
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.95, 0.65, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.82)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/focus = SubResource("StyleBoxFlat_btn_focus")
+flat = true
+text = "[Start Game]"
 
-[node name="Title" type="Label" parent="Center/Layout"]
+[node name="BtnSettings" type="Button" parent="MenuAnchor/Menu"]
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
-theme_override_font_sizes/font_size = 44
-theme_override_colors/font_color = Color(0.98, 0.95, 0.88, 1)
-theme_override_colors/font_outline_color = Color(0.1, 0.12, 0.2, 1)
-theme_override_constants/outline_size = 5
-text = "BOB Attack"
-horizontal_alignment = 1
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.95, 0.65, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.82)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/focus = SubResource("StyleBoxFlat_btn_focus")
+flat = true
+text = "[Settings]"
 
-[node name="Buttons" type="VBoxContainer" parent="Center/Layout"]
+[node name="BtnCredits" type="Button" parent="MenuAnchor/Menu"]
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.95, 0.65, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.82)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/focus = SubResource("StyleBoxFlat_btn_focus")
+flat = true
+text = "[Credits]"
 
-[node name="BtnStart" type="Button" parent="Center/Layout/Buttons"]
-custom_minimum_size = Vector2(280, 44)
+[node name="BtnQuit" type="Button" parent="MenuAnchor/Menu"]
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Start"
-
-[node name="BtnBest" type="Button" parent="Center/Layout/Buttons"]
-custom_minimum_size = Vector2(280, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Best run"
-
-[node name="BtnKeys" type="Button" parent="Center/Layout/Buttons"]
-custom_minimum_size = Vector2(280, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Keybinds"
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.95, 0.65, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.82)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/focus = SubResource("StyleBoxFlat_btn_focus")
+flat = true
+text = "[Quit]"
 
 [node name="Dialog" type="Panel" parent="."]
 visible = false
@@ -98,17 +158,26 @@ theme_override_constants/separation = 12
 
 [node name="DialogTitle" type="Label" parent="Dialog/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 18
 text = "Title"
 
 [node name="DialogBody" type="Label" parent="Dialog/Margin/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_font_sizes/font_size = 14
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 12
 autowrap_mode = 3
 text = ""
 
 [node name="DialogBack" type="Button" parent="Dialog/Margin/VBox"]
 custom_minimum_size = Vector2(120, 36)
 layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_clear")
+theme_override_styles/focus = SubResource("StyleBoxFlat_btn_focus")
+flat = true
 text = "Back"

@@ -5,7 +5,7 @@ enum BobMode {
 	ATTACK
 }
 
-@export var move_speed: float = 180.0
+@export var move_speed: float = 254.0
 @export var forage_distance: float = 260.0
 @export var surface_foot_offset: float = 30.0
 @export var gravity_force: float = 1550.0
@@ -13,9 +13,10 @@ enum BobMode {
 @export var max_fall_speed: float = 980.0
 @export var collider_half_width: float = 14.0
 @export var collider_head_offset: float = -80.0
-@export var body_visual_scale: float = 0.13
+@export var body_visual_scale: float = 0.175
 @export var body_width_scale: float = 1.06
-@export var body_visual_y_offset: float = -11.0
+@export var body_visual_y_offset: float = -18.0
+@export var actor_world_z_index: int = 3
 @export var walk_bob_amplitude: float = 1.45
 @export var walk_bob_frequency: float = 9.2
 @export var walk_tilt_amplitude: float = 0.028
@@ -33,10 +34,15 @@ enum BobMode {
 @export var mine_action_cooldown: float = 0.22
 @export var forage_mine_interval: float = 1.05
 @export var place_action_cooldown: float = 1.45
-@export var attack_place_max_distance: float = 140.0
-@export var attack_place_chance: float = 0.45
-@export var bridge_place_chance: float = 0.72
-@export var fortify_place_chance: float = 0.38
+## Minimum vertical delta (player above Bob, in pixels) required before Bob will
+## consider stacking blocks. Roughly 1.5 tiles — slightly above his jump reach
+## (~79 px). Below this, Bob just walks/jumps; he never builds towers on flat ground.
+@export var climb_place_min_vertical_delta: float = 96.0
+## Maximum horizontal distance to the climb target before Bob will start stacking.
+## Keeps him from building random pillars when the player is far away horizontally.
+@export var climb_place_max_horizontal_distance: float = 240.0
+## Roll chance for actually placing a step on a given tick (after gating).
+@export var climb_place_chance: float = 0.55
 @export var escape_mine_reach_cells_x: int = 2
 @export var escape_mine_reach_cells_up: int = 3
 @export var friendly_mode_min_seconds: float = 2.8
@@ -71,9 +77,9 @@ enum BobMode {
 @export var attack_shove_min_distance: float = 22.0
 @export var attack_shove_strength: float = 380.0
 @export var attack_shove_harass_strength_multiplier: float = 1.25
-@export var attack_shove_cooldown: float = 1.2
-@export var attack_shove_harass_cooldown: float = 0.55
-@export var attack_shove_cooldown_floor: float = 0.4
+@export var attack_shove_cooldown: float = 2.55
+@export var attack_shove_harass_cooldown: float = 1.35
+@export var attack_shove_cooldown_floor: float = 0.85
 @export var hurt_knockback_decay: float = 940.0
 @export var hurt_knockback_max_speed: float = 660.0
 @export var bite_contact_range: float = 60.0
@@ -81,9 +87,9 @@ enum BobMode {
 @export var bite_friendly_hunger_max: float = 35.0
 @export var steering_direction_deadzone: float = 10.0
 @export var steering_flip_hold_time: float = 0.11
-@export var steering_accel: float = 1500.0
-@export var steering_decel: float = 1850.0
-@export var steering_turn_brake: float = 2400.0
+@export var steering_accel: float = 2125.0
+@export var steering_decel: float = 2620.0
+@export var steering_turn_brake: float = 3400.0
 
 @export var berry_seek_hunger_below: float = 62.0
 @export var berry_seek_max_distance: float = 520.0
@@ -91,9 +97,16 @@ enum BobMode {
 @export var berry_gather_cooldown: float = 0.95
 @export var berry_seek_speed_multiplier: float = 1.85
 @export var berry_seek_speed_override: float = 0.0
+@export var deny_food_player_health_ratio_threshold: float = 0.4
+@export var deny_food_destroy_radius: float = 160.0
+@export var deny_food_destroy_chance: float = 0.7
+@export var deny_food_destroy_cooldown: float = 1.1
+## Multiplier on all incoming damage (player melee, etc.).
+@export var damage_received_multiplier: float = 0.5
 
-@export var max_health: float = 320.0
-@export var health: float = 320.0
+## One HUD heart segment equals one hit point (see Main OverheadStatus heart count).
+@export var max_health: float = 10.0
+@export var health: float = 10.0
 @export var hunger: float = 80.0
 @export var safety: float = 100.0
 @export var curiosity: float = 40.0
@@ -123,13 +136,16 @@ var _shove_player_timer: float = 0.0
 var _sword_scare_cd: float = 0.0
 var _calm_aura_count: int = 0
 var _berry_gather_cd: float = 0.0
+var _deny_food_cd: float = 0.0
 var _hurt_knockback_velocity: float = 0.0
 var _smoothed_move_x: float = 0.0
 var _horizontal_intent_sign: float = 0.0
 var _intent_flip_hold_timer: float = 0.0
+var _is_dead: bool = false
 
 func _ready() -> void:
 	add_to_group("bob_agent")
+	z_index = actor_world_z_index
 	_rng.randomize()
 	_player = get_tree().get_first_node_in_group("player") as Node2D
 	_manager = get_tree().get_first_node_in_group("game_manager")
@@ -139,6 +155,8 @@ func _ready() -> void:
 	_roll_mode_timer()
 
 func _process(delta: float) -> void:
+	if _is_dead:
+		return
 	if not _player:
 		_player = get_tree().get_first_node_in_group("player") as Node2D
 		if not _player:
@@ -153,10 +171,14 @@ func _process(delta: float) -> void:
 	_select_mode(delta)
 
 func _physics_process(_delta: float) -> void:
+	if _is_dead:
+		return
 	_time_alive += _delta
 	_berry_gather_cd = maxf(0.0, _berry_gather_cd - _delta)
+	_deny_food_cd = maxf(0.0, _deny_food_cd - _delta)
 	var desired_velocity := Vector2.ZERO
-	var berry_vel: Variant = _try_berry_food_steering()
+	var denying_food := _mode == BobMode.ATTACK and _is_player_health_below_threshold()
+	var berry_vel: Variant = null if denying_food else _try_berry_food_steering()
 	if berry_vel != null:
 		desired_velocity = berry_vel as Vector2
 	else:
@@ -168,6 +190,8 @@ func _physics_process(_delta: float) -> void:
 			BobMode.ATTACK:
 				desired_velocity = _move_toward_player(false)
 				_action_text = "attack mode: annoying player"
+				if denying_food:
+					_try_deny_player_food()
 				if _manager and _manager.can_bob_sabotage() and global_position.distance_to(_player.global_position) < 60.0:
 					var stolen: int = _manager.bob_sabotage()
 					if stolen > 0:
@@ -198,106 +222,81 @@ func _try_place_blocks() -> void:
 		return
 	if not _manager.inventory is Dictionary:
 		return
-	# Keep placement intentional and readable: prefer bridge/terrain fixes first,
-	# then combat obstruction around the player lane, then local fortification.
-	if _try_place_bridge_patch():
-		return
-	if _try_place_attack_obstruction():
-		return
-	_try_place_self_fortify()
+	# Block placement is reserved for vertical navigation only. Bob no longer builds
+	# bridges, lane obstructions, or self-fortifying walls — those caused him to box
+	# himself in. He only stacks a stair-step block adjacent to his feet when the
+	# target is meaningfully above him AND no walk/jump path exists.
+	_try_place_climb_step()
 
-func _try_place_bridge_patch() -> bool:
-	if _rng.randf() > bridge_place_chance:
-		return false
-	var dir := signi(int(round(_intended_move_x)))
-	if dir == 0:
-		dir = signi(int(round(_player.global_position.x - global_position.x)))
-		if dir == 0:
-			dir = 1
-	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
-	var front_foot := Vector2i(feet_cell.x + dir, feet_cell.y)
-	var bridge_cell := Vector2i(feet_cell.x + dir, feet_cell.y + 1)
-	if _world_tiles.is_solid_cell(front_foot):
-		return false
-	if _world_tiles.is_solid_cell(bridge_cell):
-		return false
-	var below_bridge := Vector2i(bridge_cell.x, bridge_cell.y + 1)
-	if not _world_tiles.is_solid_cell(below_bridge):
-		return false
-	var mat := _choose_place_material_for("bridge")
-	if mat == "":
-		return false
-	if _attempt_place_cell(bridge_cell, mat):
-		_action_text = "patching a path gap"
-		return true
-	return false
-
-func _try_place_attack_obstruction() -> bool:
-	if _mode != BobMode.ATTACK:
+func _try_place_climb_step() -> bool:
+	# Must be standing on something; mid-jump placement just makes Bob land on his
+	# own block and feel stuck.
+	if not _is_grounded:
 		return false
 	if _manager.has_method("is_bob_sabotage_suppressed") and _manager.is_bob_sabotage_suppressed():
 		return false
-	var dist := global_position.distance_to(_player.global_position)
-	if dist > attack_place_max_distance:
+
+	var to_target := _player.global_position - global_position
+	# Target must be meaningfully ABOVE Bob (negative y in screen space) by more than
+	# a single jump's reach. Otherwise walking/jumping is enough — no tower needed.
+	if -to_target.y < climb_place_min_vertical_delta:
 		return false
-	if _rng.randf() > attack_place_chance:
+	# Don't bother stacking when the player is far horizontally; close in first.
+	if absf(to_target.x) > climb_place_max_horizontal_distance:
 		return false
-	var bob_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
-	var player_cell: Vector2i = _world_tiles.world_to_cell(_player.global_position + Vector2(0, 30.0))
-	var lane_dir := signi(player_cell.x - bob_cell.x)
-	if lane_dir == 0:
-		lane_dir = 1 if _rng.randf() < 0.5 else -1
-	var candidates := [
-		Vector2i(player_cell.x - lane_dir, player_cell.y - 1),
-		Vector2i(player_cell.x - lane_dir, player_cell.y),
-		Vector2i(player_cell.x, player_cell.y - 1),
+	# If a normal walk+jump path already exists to the player, don't build.
+	if _bob_has_walk_jump_path_to_player():
+		return false
+	if _rng.randf() > climb_place_chance:
+		return false
+
+	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
+	var dir := signi(int(round(_player.global_position.x - global_position.x)))
+	if dir == 0:
+		dir = 1 if _rng.randf() < 0.5 else -1
+
+	# Stair-step candidates, in priority order: adjacent to Bob at foot height in
+	# the direction of the target (he'll jump onto it next frame), then the
+	# opposite side as a fallback. We never pick a cell in Bob's own column —
+	# that's his footprint and would trap him inside the placed block.
+	var candidates: Array[Vector2i] = [
+		Vector2i(feet_cell.x + dir, feet_cell.y),
+		Vector2i(feet_cell.x - dir, feet_cell.y),
 	]
-	var mat := _choose_place_material_for("attack")
+
+	var mat := _choose_place_material_for("climb")
 	if mat == "":
 		return false
 	for c in candidates:
+		if _is_cell_in_bob_footprint(c, feet_cell):
+			continue
+		# Skip cells that already have a block — nothing to step onto we don't
+		# already have.
+		if _world_tiles.is_solid_cell(c):
+			continue
 		if _attempt_place_cell(c, mat):
-			_action_text = "placing obstacle in your lane"
+			_action_text = "stacking a step to climb"
 			return true
 	return false
 
-func _try_place_self_fortify() -> bool:
-	if _mode != BobMode.ATTACK:
+func _is_cell_in_bob_footprint(cell: Vector2i, feet_cell: Vector2i) -> bool:
+	# Mirrors world_tilemap._cell_overlaps_actors: Bob spans feet, torso (feet.y-1),
+	# head (feet.y-2) in his own column.
+	if cell.x != feet_cell.x:
 		return false
-	if safety > 58.0:
-		return false
-	if _rng.randf() > fortify_place_chance:
-		return false
-	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
-	var player_dir := signi(int(round(_player.global_position.x - global_position.x)))
-	if player_dir == 0:
-		player_dir = 1
-	var wall_cell := Vector2i(feet_cell.x - player_dir, feet_cell.y - 1)
-	var mat := _choose_place_material_for("fortify")
-	if mat == "":
-		return false
-	if _attempt_place_cell(wall_cell, mat):
-		_action_text = "fortifying around itself"
-		return true
-	return false
+	return cell.y >= feet_cell.y - 2 and cell.y <= feet_cell.y
 
 func _choose_place_material_for(intent: String) -> String:
 	var inv: Dictionary = _manager.inventory
 	var order: Array[String]
 	match intent:
-		"attack":
-			order = ["reinforced", "stone", "dirt", "grass_block"]
-		"fortify":
-			order = ["reinforced", "stone", "dirt", "grass_block"]
-		"bridge":
-			order = ["dirt", "grass_block", "stone", "reinforced"]
+		"climb":
+			# Cheap, plentiful materials first; reinforced stays for actual building.
+			order = ["dirt", "stone"]
 		_:
-			order = ["dirt", "grass_block", "stone", "reinforced"]
+			order = ["dirt", "stone", "reinforced"]
 	for k in order:
 		if int(inv.get(k, 0)) > 0:
-			# Keep reinforced scarce so Bob does not hard-lock too often.
-			if k == "reinforced" and intent == "attack" and int(inv.get("reinforced", 0)) < 2:
-				continue
 			return k
 	return ""
 
@@ -305,6 +304,11 @@ func _attempt_place_cell(cell: Vector2i, kind: String) -> bool:
 	if kind == "":
 		return false
 	if int(_manager.inventory.get(kind, 0)) <= 0:
+		return false
+	# Final hard guard: never let the AI place a block on the cells Bob's body
+	# currently occupies, even if upstream checks miss the case.
+	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
+	if _is_cell_in_bob_footprint(cell, feet_cell):
 		return false
 	var result: Dictionary = _world_tiles.try_place_cell(cell, kind)
 	if not bool(result.get("ok", false)):
@@ -372,13 +376,6 @@ func _select_mode(delta: float) -> void:
 
 	var player_distance := global_position.distance_to(_player.global_position)
 	var player_wields_sword := _player.has_method("get_selected_tool") and str(_player.get_selected_tool()) == "sword"
-
-	if player_wields_sword and player_distance < 165.0 and _mode == BobMode.ATTACK and _sword_scare_cd <= 0.0:
-		_sword_scare_cd = 2.2
-		_mode = BobMode.FRIENDLY
-		_roll_mode_timer()
-		_action_text = "respecting the blade..."
-		return
 
 	if _mode_timer > 0.0:
 		return
@@ -489,8 +486,8 @@ func _try_forage_mine() -> void:
 			match kind:
 				"food":
 					hunger = minf(100.0, hunger + 6.0 * amount)
-				"grass_block":
-					hunger = minf(100.0, hunger + 1.5 * amount)
+					if not _is_dead:
+						health = minf(max_health, health + 2.0 * amount)
 				"dirt", "wood":
 					hunger = minf(100.0, hunger + 1.0 * amount)
 		energy = minf(100.0, energy + 2.0)
@@ -923,6 +920,9 @@ func _nearest_group_node(group_name: String, max_distance: float) -> Node2D:
 	return nearest
 
 func _nearest_ripe_berry_bush(max_distance: float) -> Node2D:
+	return _nearest_ripe_berry_bush_from(global_position, max_distance)
+
+func _nearest_ripe_berry_bush_from(origin: Vector2, max_distance: float) -> Node2D:
 	var nearest: Node2D
 	var best := max_distance
 	for item in get_tree().get_nodes_in_group("berry_bushes"):
@@ -931,11 +931,55 @@ func _nearest_ripe_berry_bush(max_distance: float) -> Node2D:
 		if item.has_method("is_ripe") and not item.is_ripe():
 			continue
 		var node := item as Node2D
-		var d := global_position.distance_to(node.global_position)
+		var d := origin.distance_to(node.global_position)
 		if d < best:
 			best = d
 			nearest = node
 	return nearest
+
+func _is_player_health_below_threshold() -> bool:
+	if not _manager:
+		return false
+	var max_hp := float(_manager.player_max_health)
+	if max_hp <= 0.001:
+		return false
+	var hp_ratio := float(_manager.player_health) / max_hp
+	return hp_ratio <= clampf(deny_food_player_health_ratio_threshold, 0.0, 1.0)
+
+func _try_deny_player_food() -> void:
+	if _deny_food_cd > 0.0 or not _player or not _world_tiles:
+		return
+	var bush := _nearest_ripe_berry_bush_from(_player.global_position, deny_food_destroy_radius)
+	if not bush:
+		return
+	var bush_cell := _resolve_bush_placement_cell(bush as Node2D)
+	if bush_cell.x < -1000000:
+		return
+	if global_position.distance_to(_world_tiles.get_cell_world_center(bush_cell)) > 166.0:
+		return
+	if _rng.randf() > clampf(deny_food_destroy_chance, 0.0, 1.0):
+		_deny_food_cd = deny_food_destroy_cooldown
+		return
+	var mat := _choose_place_material_for("climb")
+	if mat == "":
+		return
+	if _attempt_place_cell(bush_cell, mat):
+		_deny_food_cd = deny_food_destroy_cooldown
+		_action_text = "denying berries near player"
+
+func _resolve_bush_placement_cell(bush: Node2D) -> Vector2i:
+	var root: Vector2i = _world_tiles.world_to_cell(bush.global_position)
+	var candidates: Array[Vector2i] = [
+		root,
+		Vector2i(root.x, root.y - 1),
+		Vector2i(root.x + 1, root.y),
+		Vector2i(root.x - 1, root.y),
+	]
+	for cell in candidates:
+		if _world_tiles.is_solid_cell(cell):
+			continue
+		return cell
+	return Vector2i(-9999999, -9999999)
 
 func _try_berry_food_steering() -> Variant:
 	if hunger >= berry_seek_hunger_below:
@@ -956,6 +1000,8 @@ func _try_berry_food_steering() -> Variant:
 					_manager.collect_for_bob(maxi(1, amt >> 1))
 				hunger = minf(100.0, hunger + 6.0 * float(amt))
 				energy = minf(100.0, energy + 3.5)
+				if not _is_dead:
+					health = minf(max_health, health + 1.5)
 				curiosity = maxf(0.0, curiosity - 18.0)
 				_action_text = "raiding berry patch!"
 		return Vector2.ZERO
@@ -990,7 +1036,10 @@ func _update_visuals() -> void:
 		body.modulate = mode_tint
 
 func receive_food(amount: int) -> void:
+	if _is_dead:
+		return
 	hunger = minf(100.0, hunger + float(amount) * 22.0)
+	health = minf(max_health, health + float(amount) * 2.5)
 	safety = minf(100.0, safety + float(amount) * 10.0)
 	energy = minf(100.0, energy + float(amount) * 12.0)
 	trust_to_player = minf(100.0, trust_to_player + float(amount) * 6.0)
@@ -1057,13 +1106,14 @@ func _try_shove_player(delta: float) -> void:
 	_action_text = "shoving you aggressively" if not in_kill_window else "shoving you out of the way"
 
 func receive_damage(amount: float, hit_direction_x: float = 0.0, knockback_strength: float = 230.0) -> void:
-	if amount <= 0.0:
+	if _is_dead or amount <= 0.0:
 		return
-	health = clampf(health - amount, 0.0, max_health)
-	safety = maxf(0.0, safety - amount * 0.6)
-	hunger = maxf(0.0, hunger - amount * 0.25)
-	trust_to_player = maxf(0.0, trust_to_player - amount * 0.9)
-	affection = maxf(0.0, affection - amount * 0.6)
+	var dmg := amount * damage_received_multiplier
+	health = clampf(health - dmg, 0.0, max_health)
+	safety = maxf(0.0, safety - dmg * 0.6)
+	hunger = maxf(0.0, hunger - dmg * 0.25)
+	trust_to_player = maxf(0.0, trust_to_player - dmg * 0.9)
+	affection = maxf(0.0, affection - dmg * 0.6)
 	_action_text = "angry after being hit!"
 	var kick := hit_direction_x
 	if kick == 0.0 and _player:
@@ -1072,6 +1122,27 @@ func receive_damage(amount: float, hit_direction_x: float = 0.0, knockback_stren
 		kick = 1.0 if _rng.randf() < 0.5 else -1.0
 	_apply_hurt_knockback(kick, knockback_strength)
 	global_position.x += kick * 14.0
+	if health <= 0.0:
+		_die()
+
+
+func is_defeated() -> bool:
+	return _is_dead
+
+
+func _die() -> void:
+	if _is_dead:
+		return
+	_is_dead = true
+	_action_text = "defeated"
+	remove_from_group("bob_agent")
+	collision_layer = 0
+	collision_mask = 0
+	velocity = Vector2.ZERO
+	set_process(false)
+	set_physics_process(false)
+	visible = false
+
 
 func _apply_hurt_knockback(direction_x: float, strength: float) -> void:
 	var dir := signf(direction_x)
@@ -1095,5 +1166,5 @@ func get_life_debug_snapshot() -> Dictionary:
 		"affection": affection,
 		"state": _mode_to_string(_mode),
 		"action": _action_text,
+		"defeated": _is_dead,
 	}
-

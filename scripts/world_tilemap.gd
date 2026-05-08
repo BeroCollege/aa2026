@@ -10,10 +10,19 @@ const SURFACE_MAX_Y := 24
 const STREAM_MARGIN_TILES := 64
 const TERRAIN_STEP_UP_PROB := 0.15
 const TERRAIN_STEP_DOWN_PROB := 0.15
+const GRASS_MIDDLE_SOURCE_ID := 0
+const DIRT_SOURCE_ID := 1
+const STONE_SOURCE_ID := 2
+const WATER_SOURCE_ID := 3
+const LAVA_SOURCE_ID := 4
 const REINFORCED_SOURCE_ID := 5
+const GRASS_LEFT_SOURCE_ID := 6
+const GRASS_RIGHT_SOURCE_ID := 7
+const GRASS_FULL_SOURCE_ID := 8
 
 var _surface_cells: Array[Vector2i] = []
 var _surface_y_by_x: Dictionary = {}
+## Cumulative mining damage per cell (float so bare-hand fractional hits work).
 var _tile_damage: Dictionary = {}
 var _generated_min_x: int = 0
 var _generated_max_x: int = -1
@@ -21,6 +30,7 @@ var _terrain_rng: RandomNumberGenerator
 
 func _ready() -> void:
 	y_sort_enabled = false
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	tile_set = _build_tileset()
 	_terrain_rng = RandomNumberGenerator.new()
 	_terrain_rng.seed = 1337
@@ -35,6 +45,7 @@ func paint_world() -> void:
 	_generated_max_x = INITIAL_WORLD_WIDTH_TILES - 1
 	for x in range(_generated_min_x, _generated_max_x + 1):
 		_paint_column_at_x(x)
+	_refresh_surface_grass_visuals_range(_generated_min_x, _generated_max_x)
 
 func _surface_y_for_column(x: int) -> int:
 	if _surface_y_by_x.has(x):
@@ -72,6 +83,7 @@ func _paint_column_at_x(x: int) -> void:
 		if y >= current_surface_y + 4:
 			source = stone
 		set_cell(Vector2i(x, y), source, Vector2i.ZERO)
+	_refresh_surface_grass_visuals_range(x - 1, x + 1)
 
 func ensure_streaming_around_world(min_world_x: float, max_world_x: float) -> void:
 	var min_cx := world_to_cell(Vector2(min_world_x, global_position.y)).x
@@ -87,22 +99,46 @@ func ensure_streaming_around_world(min_world_x: float, max_world_x: float) -> vo
 
 func _build_tileset() -> TileSet:
 	var set := TileSet.new()
-	_add_single_tile_source(set, 0, "res://assets/blockpack/tile_grass.png")
-	_add_single_tile_source(set, 1, "res://assets/blockpack/tile_dirt.png")
-	_add_single_tile_source(set, 2, "res://assets/blockpack/tile_stone.png")
-	_add_single_tile_source(set, 3, "res://assets/blockpack/tile_water.png")
-	_add_single_tile_source(set, 4, "res://assets/blockpack/tile_lava.png")
+	# Surface grass uses multiple sources so we can swap variants based on horizontal neighbors.
+	_add_single_tile_source(set, GRASS_MIDDLE_SOURCE_ID, "res://assets/tiles/grass_top.png")
+	_add_single_tile_source(set, DIRT_SOURCE_ID, "res://assets/tiles/dirt.png")
+	_add_single_tile_source(set, STONE_SOURCE_ID, "res://assets/tiles/stone.png")
+	_add_single_tile_source(set, WATER_SOURCE_ID, "res://assets/blockpack/tile_water.png")
+	_add_single_tile_source(set, LAVA_SOURCE_ID, "res://assets/blockpack/tile_lava.png")
 	_add_solid_color_tile_source(set, REINFORCED_SOURCE_ID, Color(0.32, 0.38, 0.55, 1.0))
+	_add_single_tile_source(set, GRASS_LEFT_SOURCE_ID, "res://assets/tiles/grass_left.png")
+	_add_single_tile_source(set, GRASS_RIGHT_SOURCE_ID, "res://assets/tiles/grass_right.png")
+	_add_single_tile_source(set, GRASS_FULL_SOURCE_ID, "res://assets/tiles/grass_full.png")
 	set.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
 	return set
 
 func _add_single_tile_source(set: TileSet, source_id: int, texture_path: String) -> void:
 	var src := TileSetAtlasSource.new()
-	src.texture = load(texture_path)
-	var tex_size := src.texture.get_size()
-	src.texture_region_size = Vector2i(int(tex_size.x), int(tex_size.y))
+	var tex: Texture2D = _normalized_tile_texture(texture_path)
+	if tex == null:
+		push_error("world_tilemap: failed to load tile texture %s" % texture_path)
+		return
+	src.texture = tex
+	# One atlas tile per source; art is resized to match logical TILE_SIZE so neighbors align.
+	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
 	src.create_tile(Vector2i.ZERO)
 	set.add_source(src, source_id)
+
+
+## Runtime tile art is often larger than TILE_SIZE; stretching mixed sizes causes seams between cells.
+func _normalized_tile_texture(texture_path: String) -> Texture2D:
+	var loaded: Resource = load(texture_path)
+	if loaded == null or not (loaded is Texture2D):
+		return null
+	var src_tex: Texture2D = loaded
+	var img: Image = src_tex.get_image()
+	if img == null:
+		return src_tex
+	if img.get_width() == TILE_SIZE and img.get_height() == TILE_SIZE:
+		return src_tex
+	var dup: Image = img.duplicate()
+	dup.resize(TILE_SIZE, TILE_SIZE, Image.INTERPOLATE_NEAREST)
+	return ImageTexture.create_from_image(dup)
 
 func _add_solid_color_tile_source(set: TileSet, source_id: int, color: Color) -> void:
 	var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
@@ -135,12 +171,51 @@ func _add_solid_color_tile_source(set: TileSet, source_id: int, color: Color) ->
 
 func _source_ids() -> Dictionary:
 	return {
-		"grass": 0,
-		"dirt": 1,
-		"stone": 2,
-		"water": 3,
-		"lava": 4,
+		"grass": GRASS_MIDDLE_SOURCE_ID,
+		"dirt": DIRT_SOURCE_ID,
+		"stone": STONE_SOURCE_ID,
+		"water": WATER_SOURCE_ID,
+		"lava": LAVA_SOURCE_ID,
 	}
+
+func _is_grass_source_id(source_id: int) -> bool:
+	return source_id in [GRASS_MIDDLE_SOURCE_ID, GRASS_LEFT_SOURCE_ID, GRASS_RIGHT_SOURCE_ID, GRASS_FULL_SOURCE_ID]
+
+func _refresh_surface_grass_visuals_range(min_x: int, max_x: int) -> void:
+	var ax := mini(min_x, max_x)
+	var bx := maxi(min_x, max_x)
+	for x in range(ax, bx + 1):
+		_refresh_surface_grass_visuals_for_column(x)
+
+func _refresh_surface_grass_visuals_for_column(x: int) -> void:
+	if not _surface_y_by_x.has(x):
+		return
+	var y := int(_surface_y_by_x[x])
+	if y < 0 or y >= MAP_HEIGHT:
+		return
+	var cell := Vector2i(x, y)
+	var current_source := get_cell_source_id(cell)
+	if not _is_grass_source_id(current_source):
+		return
+
+	# "Surface grass" variant rules (based on solidity at the same surface row):
+	# - if both left and right are air → grass_full (isolated / floating top strip)
+	# - else if left is air → grass_left (left cliff edge)
+	# - else if right is air → grass_right (right cliff edge)
+	# - else → grass_top (standard middle strip)
+	var left_solid := is_solid_cell(Vector2i(x - 1, y))
+	var right_solid := is_solid_cell(Vector2i(x + 1, y))
+	var desired := GRASS_MIDDLE_SOURCE_ID
+	if not left_solid and not right_solid:
+		desired = GRASS_FULL_SOURCE_ID
+	elif not left_solid:
+		desired = GRASS_LEFT_SOURCE_ID
+	elif not right_solid:
+		desired = GRASS_RIGHT_SOURCE_ID
+
+	if current_source == desired:
+		return
+	set_cell(cell, desired, Vector2i.ZERO)
 
 func _paint_lava_pool(start_x: int, width: int, lava_source_id: int) -> void:
 	for x in range(start_x, start_x + width):
@@ -204,6 +279,17 @@ func get_surface_world_position_at_cell(cell: Vector2i) -> Vector2:
 	var center := get_cell_world_center(cell)
 	return Vector2(center.x, get_cell_world_top_y(cell))
 
+
+func has_surface_column(column_x: int) -> bool:
+	return _surface_y_by_x.has(column_x)
+
+
+## World position at walkable surface center for a terrain column (correct even when the TileMapLayer is moved/scaled).
+## Caller must ensure `has_surface_column(column_x)` first.
+func get_surface_world_position_at_column_x(column_x: int) -> Vector2:
+	var surface_y := int(_surface_y_by_x[column_x])
+	return get_surface_world_position_at_cell(Vector2i(column_x, surface_y))
+
 func is_solid_cell(cell: Vector2i) -> bool:
 	if cell.y < 0 or cell.y >= MAP_HEIGHT:
 		return true
@@ -217,11 +303,11 @@ func _cell_key(cell: Vector2i) -> String:
 
 func _required_hits_for_source(source_id: int) -> int:
 	match source_id:
-		0: # grass
+		GRASS_MIDDLE_SOURCE_ID, GRASS_LEFT_SOURCE_ID, GRASS_RIGHT_SOURCE_ID, GRASS_FULL_SOURCE_ID:
 			return 1
-		1: # dirt
+		DIRT_SOURCE_ID:
 			return 2
-		2: # stone
+		STONE_SOURCE_ID:
 			return 4
 		REINFORCED_SOURCE_ID:
 			return 8
@@ -230,11 +316,11 @@ func _required_hits_for_source(source_id: int) -> int:
 
 func _primary_drop_kind_for_source(source_id: int) -> String:
 	match source_id:
-		0:
-			return "grass_block"
-		1:
+		GRASS_MIDDLE_SOURCE_ID, GRASS_LEFT_SOURCE_ID, GRASS_RIGHT_SOURCE_ID, GRASS_FULL_SOURCE_ID:
 			return "dirt"
-		2:
+		DIRT_SOURCE_ID:
+			return "dirt"
+		STONE_SOURCE_ID:
 			return "stone"
 		REINFORCED_SOURCE_ID:
 			return "reinforced"
@@ -243,29 +329,32 @@ func _primary_drop_kind_for_source(source_id: int) -> String:
 
 func _build_drops_for_source(source_id: int) -> Array:
 	match source_id:
-		0:
-			var drops: Array = [{"kind": "grass_block", "amount": 1}, {"kind": "food", "amount": 1}]
-			if _terrain_rng and _terrain_rng.randf() < 0.18:
-				drops.append({"kind": "seeds", "amount": 1})
-			return drops
-		1:
+		DIRT_SOURCE_ID:
 			return [{"kind": "dirt", "amount": 1}]
-		2:
+		STONE_SOURCE_ID:
 			return [{"kind": "stone", "amount": 1}]
 		REINFORCED_SOURCE_ID:
 			return [{"kind": "reinforced", "amount": 1}]
 		_:
 			return []
 
+## Grass blocks become dirt tiles when fully mined; bonus loot matches old turf feel (no grass_block item).
+func _build_drops_for_grass_stripped_to_dirt() -> Array:
+	var drops: Array = [{"kind": "food", "amount": 1}]
+	if _terrain_rng and _terrain_rng.randf() < 0.18:
+		drops.append({"kind": "seeds", "amount": 1})
+	return drops
+
+
 # Backwards-compat shim for callers that still reference the old helper.
 func _drop_kind_for_source(source_id: int) -> String:
 	return _primary_drop_kind_for_source(source_id)
 
-func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0) -> Dictionary:
+func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, bare_hand_slowdown: float = 10.0) -> Dictionary:
 	var source_id := get_cell_source_id(cell)
 	if source_id == -1:
 		return {"ok": false, "reason": "empty"}
-	if source_id == 4:
+	if source_id == LAVA_SOURCE_ID:
 		return {"ok": false, "reason": "hazard"}
 	# Reinforced blocks: only a pickaxe touches them.
 	if source_id == REINFORCED_SOURCE_ID and tool != "pickaxe":
@@ -278,32 +367,43 @@ func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0) 
 		damage = 2
 	elif tool == "shovel" and source_id == 1:
 		damage = 3
-	elif tool == "shovel" and source_id == 0:
+	elif tool == "shovel" and _is_grass_source_id(source_id):
 		damage = 2
 	var mult := clampf(tier_damage_mult, 1.0, 2.5)
-	damage = maxi(1, int(round(float(damage) * mult)))
-	_tile_damage[key] = int(_tile_damage.get(key, 0)) + damage
-	var hits := int(_tile_damage[key])
-	var required_hits := _required_hits_for_source(source_id)
-	if hits < required_hits:
+	var damage_f := float(damage) * mult
+	if tool == "none":
+		var slow := maxf(1.0, bare_hand_slowdown)
+		damage_f /= slow
+	_tile_damage[key] = float(_tile_damage.get(key, 0.0)) + damage_f
+	var hits := float(_tile_damage[key])
+	var required_hits := float(_required_hits_for_source(source_id))
+	if hits + 1e-4 < required_hits:
 		return {
 			"ok": true,
 			"mined": false,
-			"progress": float(hits) / float(required_hits),
+			"progress": hits / required_hits,
 			"drops": [],
 			"drop_kind": _primary_drop_kind_for_source(source_id),
 			"drop_amount": 0,
 		}
 	_tile_damage.erase(key)
-	set_cell(cell, -1, Vector2i.ZERO)
+	var drops: Array
+	var mine_feedback := ""
+	if _is_grass_source_id(source_id):
+		set_cell(cell, DIRT_SOURCE_ID, Vector2i.ZERO)
+		drops = _build_drops_for_grass_stripped_to_dirt()
+		mine_feedback = "Stripped grass — exposed dirt."
+	else:
+		set_cell(cell, -1, Vector2i.ZERO)
+		drops = _build_drops_for_source(source_id)
 	_rebuild_surface_for_column(cell.x)
-	var drops := _build_drops_for_source(source_id)
+	_refresh_surface_grass_visuals_range(cell.x - 1, cell.x + 1)
 	var primary_kind := ""
 	var primary_amount := 0
 	if not drops.is_empty():
 		primary_kind = str(drops[0].get("kind", ""))
 		primary_amount = int(drops[0].get("amount", 0))
-	return {
+	var out := {
 		"ok": true,
 		"mined": true,
 		"progress": 1.0,
@@ -311,6 +411,9 @@ func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0) 
 		"drop_kind": primary_kind,
 		"drop_amount": primary_amount,
 	}
+	if mine_feedback != "":
+		out["mine_feedback"] = mine_feedback
+	return out
 
 func try_place_cell(cell: Vector2i, kind: String) -> Dictionary:
 	if cell.y < 0 or cell.y >= MAP_HEIGHT:
@@ -330,9 +433,11 @@ func try_place_cell(cell: Vector2i, kind: String) -> Dictionary:
 	var source_id := _source_id_for_kind(kind)
 	if source_id < 0:
 		return {"ok": false, "reason": "unknown_kind"}
+	var removed_plants := _clear_plants_at_cell(cell)
 	set_cell(cell, source_id, Vector2i.ZERO)
 	_rebuild_surface_for_column(cell.x)
-	return {"ok": true, "kind": kind}
+	_refresh_surface_grass_visuals_range(cell.x - 1, cell.x + 1)
+	return {"ok": true, "kind": kind, "removed_plants": removed_plants}
 
 func is_reinforced_cell(cell: Vector2i) -> bool:
 	return get_cell_source_id(cell) == REINFORCED_SOURCE_ID
@@ -340,11 +445,9 @@ func is_reinforced_cell(cell: Vector2i) -> bool:
 func _source_id_for_kind(kind: String) -> int:
 	match kind:
 		"dirt":
-			return 1
+			return DIRT_SOURCE_ID
 		"stone":
-			return 2
-		"grass_block":
-			return 0
+			return STONE_SOURCE_ID
 		"reinforced":
 			return REINFORCED_SOURCE_ID
 		_:
@@ -370,6 +473,26 @@ func _cell_overlaps_actors(cell: Vector2i) -> bool:
 			return true
 	return false
 
+func _clear_plants_at_cell(cell: Vector2i) -> int:
+	var removed := 0
+	for group_name in ["berry_bushes", "crops", "resource_nodes"]:
+		for item in get_tree().get_nodes_in_group(group_name):
+			if not (item is Node2D):
+				continue
+			var node := item as Node2D
+			if not is_instance_valid(node):
+				continue
+			var plant_cell := world_to_cell(node.global_position)
+			var overlaps := (
+				plant_cell == cell
+				or Vector2i(plant_cell.x, plant_cell.y - 1) == cell
+				or Vector2i(plant_cell.x, plant_cell.y + 1) == cell
+			)
+			if overlaps:
+				node.queue_free()
+				removed += 1
+	return removed
+
 func _rebuild_surface_for_column(column_x: int) -> void:
 	var found := false
 	var first_solid_y := SURFACE_MAX_Y
@@ -386,3 +509,4 @@ func _rebuild_surface_for_column(column_x: int) -> void:
 	_surface_cells = []
 	for x in _surface_y_by_x.keys():
 		_surface_cells.append(Vector2i(int(x), int(_surface_y_by_x[x])))
+	_refresh_surface_grass_visuals_range(column_x - 1, column_x + 1)

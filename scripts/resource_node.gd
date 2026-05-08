@@ -4,7 +4,7 @@ extends Area2D
 @export var gather_value: int = 2
 @export var gather_hits_required: int = 1
 
-var _hits_taken: int = 0
+var _gather_progress: float = 0.0
 
 func _ready() -> void:
 	add_to_group("resource_nodes")
@@ -16,10 +16,11 @@ func gather(selected_tool: String = "", gather_power: float = 1.0) -> Dictionary
 		effective_power *= 1.7
 	elif resource_kind == "stone" and selected_tool == "pickaxe":
 		effective_power *= 1.7
-	_hits_taken += maxi(1, int(round(effective_power)))
+	_gather_progress += effective_power
 	_play_hit_feedback()
-	if _hits_taken < gather_hits_required:
-		return {"done": false, "amount": 0, "kind": resource_kind, "progress": float(_hits_taken) / float(gather_hits_required)}
+	var need := float(gather_hits_required)
+	if _gather_progress + 1e-4 < need:
+		return {"done": false, "amount": 0, "kind": resource_kind, "progress": _gather_progress / need}
 	queue_free()
 	return {"done": true, "amount": gather_value, "kind": resource_kind, "progress": 1.0}
 

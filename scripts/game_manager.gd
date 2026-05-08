@@ -5,6 +5,12 @@ class_name GameManager
 @export var sabotage_cooldown_seconds: float = 6.0
 @export var enable_night_cycle: bool = false
 @export var debug_mode_enabled: bool = false
+@export var player_max_health: float = 100.0
+@export var player_max_hunger: float = 100.0
+@export var full_hunger_heal_tick_seconds: float = 2.5
+@export var full_hunger_heal_amount: float = 16.666667
+@export var starvation_tick_seconds: float = 1.0
+@export var starvation_damage_per_tick: float = 2.0
 
 var player_resources: int = 0
 var bob_resources: int = 0
@@ -44,7 +50,6 @@ var inventory := {
 	"food": 0,
 	"seeds": 0,
 	"dirt": 0,
-	"grass_block": 0,
 	"reinforced": 0,
 	"totems": 0,
 	"pickaxe": 0,
@@ -59,6 +64,9 @@ var _day_timer: float = 0.0
 var _sabotage_timer: float = 0.0
 var _bob_suppress_sabotage_timer: float = 0.0
 var _player_is_moving: bool = false
+var _full_hunger_heal_timer: float = 0.0
+var _starvation_timer: float = 0.0
+const _HUD_STATUS_SEGMENTS := 6.0
 
 func _process(delta: float) -> void:
 	_day_timer += delta
@@ -83,9 +91,9 @@ func collect_for_player_resource(resource_kind: String, amount: int = 1) -> void
 		inventory[resource_kind] = 0
 	inventory[resource_kind] += amount
 	if resource_kind == "food":
-		player_hunger = minf(100.0, player_hunger + float(amount) * 6.0)
+		player_hunger = minf(player_max_hunger, player_hunger + float(amount) * 6.0)
 	else:
-		player_hunger = minf(100.0, player_hunger + float(amount) * 1.5)
+		player_hunger = minf(player_max_hunger, player_hunger + float(amount) * 1.5)
 	player_resources = _resource_score()
 
 func collect_for_bob(amount: int = 1) -> void:
@@ -264,13 +272,13 @@ func craft_bob_snack() -> bool:
 
 func craft_cooked_meal() -> bool:
 	if debug_mode_enabled:
-		player_hunger = minf(100.0, player_hunger + 26.0)
+		player_hunger = minf(player_max_hunger, player_hunger + 26.0)
 		return true
 	if inventory["food"] < 3 or inventory["wood"] < 1:
 		return false
 	inventory["food"] -= 3
 	inventory["wood"] -= 1
-	player_hunger = minf(100.0, player_hunger + 26.0)
+	player_hunger = minf(player_max_hunger, player_hunger + 26.0)
 	player_resources = _resource_score()
 	return true
 
@@ -298,7 +306,7 @@ func take_bob_snack(amount: int = 1) -> int:
 func heal_player(amount: float) -> void:
 	if not player_alive:
 		return
-	player_health = minf(100.0, player_health + amount)
+	player_health = minf(player_max_health, player_health + amount)
 
 func damage_player(amount: float) -> void:
 	if not player_alive:
@@ -313,7 +321,24 @@ func _update_player_survival(delta: float) -> void:
 	var drain_rate := 1.6 if _player_is_moving else 0.18
 	player_hunger = maxf(0.0, player_hunger - drain_rate * delta)
 	if player_hunger <= 0.0:
-		damage_player(8.0 * delta)
+		_starvation_timer += delta
+		var starvation_tick := maxf(0.05, starvation_tick_seconds)
+		while _starvation_timer >= starvation_tick and player_alive:
+			_starvation_timer -= starvation_tick
+			damage_player(starvation_damage_per_tick)
+	else:
+		_starvation_timer = 0.0
+
+	# Match main HUD rounding (6 segments): "full" HUD hunger should be heal-eligible.
+	var full_hunger_threshold := (5.5 / _HUD_STATUS_SEGMENTS) * player_max_hunger
+	if player_hunger >= full_hunger_threshold and player_health < player_max_health:
+		_full_hunger_heal_timer += delta
+		var heal_tick := maxf(0.05, full_hunger_heal_tick_seconds)
+		while _full_hunger_heal_timer >= heal_tick and player_alive:
+			_full_hunger_heal_timer -= heal_tick
+			heal_player(full_hunger_heal_amount)
+	else:
+		_full_hunger_heal_timer = 0.0
 
 func set_player_moving(is_moving: bool) -> void:
 	_player_is_moving = is_moving
@@ -335,7 +360,7 @@ func _remove_random_player_resources(count: int) -> void:
 func _resource_score() -> int:
 	return (
 		inventory["wood"] + inventory["stone"] + inventory["food"] + inventory["seeds"]
-		+ inventory["dirt"] + inventory["grass_block"] + inventory["reinforced"] * 2 + inventory["totems"] * 5
+		+ inventory["dirt"] + inventory["reinforced"] * 2 + inventory["totems"] * 5
 		+ inventory["pickaxe"] * 2 + inventory["axe"] * 2 + inventory["sword"] * 2
 		+ inventory["hoe"] * 2 + inventory["shovel"] * 2
 	)
@@ -349,7 +374,6 @@ func _apply_debug_inventory() -> void:
 		"food": 999,
 		"seeds": 999,
 		"dirt": 999,
-		"grass_block": 999,
 		"reinforced": 999,
 		"totems": 9,
 		"pickaxe": 1,

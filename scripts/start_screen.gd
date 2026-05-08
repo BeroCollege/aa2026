@@ -1,11 +1,13 @@
 extends Control
 
 const MAIN_SCENE := "res://scenes/Main.tscn"
+const START_BG_PATH := "res://assets/ui/bob_attack_start_screen.png"
 
-@onready var _title: Label = $Center/Layout/Title
-@onready var _btn_start: Button = $Center/Layout/Buttons/BtnStart
-@onready var _btn_best: Button = $Center/Layout/Buttons/BtnBest
-@onready var _btn_keys: Button = $Center/Layout/Buttons/BtnKeys
+@onready var _background_image: TextureRect = $BackgroundImage
+@onready var _btn_start: Button = $MenuAnchor/Menu/BtnStart
+@onready var _btn_settings: Button = $MenuAnchor/Menu/BtnSettings
+@onready var _btn_credits: Button = $MenuAnchor/Menu/BtnCredits
+@onready var _btn_quit: Button = $MenuAnchor/Menu/BtnQuit
 @onready var _dialog: Panel = $Dialog
 @onready var _dialog_title: Label = $Dialog/Margin/VBox/DialogTitle
 @onready var _dialog_body: Label = $Dialog/Margin/VBox/DialogBody
@@ -30,32 +32,69 @@ const _ACTION_LABELS: Array = [
 
 
 func _ready() -> void:
-	_title.text = "BOB Attack"
+	# Bypass broken/missing `.png.import` (valid=false leaves TextureRect empty → gray screen).
+	_apply_start_screen_background_texture()
 	_btn_start.pressed.connect(_on_start_pressed)
-	_btn_best.pressed.connect(_on_best_pressed)
-	_btn_keys.pressed.connect(_on_keys_pressed)
+	_btn_settings.pressed.connect(_on_settings_pressed)
+	_btn_credits.pressed.connect(_on_credits_pressed)
+	_btn_quit.pressed.connect(_on_quit_pressed)
 	_dialog_back.pressed.connect(_close_dialog)
 	_dialog.visible = false
+	_btn_start.grab_focus()
+
+
+func _apply_start_screen_background_texture() -> void:
+	var disk_path := ProjectSettings.globalize_path(START_BG_PATH)
+	var img := _load_image_from_file_ignore_extension(disk_path)
+	if img == null:
+		push_warning(
+			"Start screen: could not load background image at %s "
+			+ "(file missing, or wrong format — e.g. JPEG saved as .png)."
+			% disk_path
+		)
+		return
+	_background_image.texture = ImageTexture.create_from_image(img)
+
+
+## `Image.load_from_file` picks a decoder from the file extension. Assets sometimes use a
+## `.png` filename with JPEG (or other) bytes; decode by trying formats explicitly.
+func _load_image_from_file_ignore_extension(absolute_path: String) -> Image:
+	if not FileAccess.file_exists(absolute_path):
+		return null
+	var f := FileAccess.open(absolute_path, FileAccess.READ)
+	if f == null:
+		return null
+	var buf: PackedByteArray = f.get_buffer(f.get_length())
+	if buf.is_empty():
+		return null
+	var img := Image.new()
+	if img.load_png_from_buffer(buf) == OK:
+		return img
+	if img.load_jpg_from_buffer(buf) == OK:
+		return img
+	if img.load_webp_from_buffer(buf) == OK:
+		return img
+	return null
 
 
 func _on_start_pressed() -> void:
 	get_tree().change_scene_to_file(MAIN_SCENE)
 
 
-func _on_best_pressed() -> void:
-	var best: float = RunRecords.load_best_survival_seconds()
-	_dialog_title.text = "Best run"
-	if best < 0.0:
-		_dialog_body.text = "Longest survival: --:--\n\nPlay a run — your best time is saved when the run ends."
-	else:
-		_dialog_body.text = "Longest survival: %s" % RunRecords.format_mm_ss(best)
+func _on_settings_pressed() -> void:
+	_dialog_title.text = "Settings"
+	_dialog_body.text = "Coming soon."
 	_open_dialog()
 
 
-func _on_keys_pressed() -> void:
-	_dialog_title.text = "Keybinds"
-	_dialog_body.text = _build_keybinds_text()
+func _on_credits_pressed() -> void:
+	_dialog_title.text = "Credits"
+	_dialog_body.text = "Coming soon.\n\nKeybinds:\n%s" % _build_keybinds_text()
 	_open_dialog()
+
+
+func _on_quit_pressed() -> void:
+	get_tree().quit()
 
 
 func _open_dialog() -> void:
@@ -64,6 +103,7 @@ func _open_dialog() -> void:
 
 func _close_dialog() -> void:
 	_dialog.visible = false
+	_btn_start.grab_focus()
 
 
 func _format_action_line(action: String, label: String) -> String:

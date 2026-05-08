@@ -13,9 +13,11 @@ extends CharacterBody2D
 @export var max_fall_speed: float = 980.0
 @export var collider_half_width: float = 14.0
 @export var collider_head_offset: float = -80.0
-@export var body_visual_scale: float = 0.13
+@export var body_visual_scale: float = 0.11
 @export var body_width_scale: float = 1.12
-@export var body_visual_y_offset: float = -28.5
+@export var body_visual_y_offset: float = -12.0
+@export var actor_world_z_index: int = 3
+@export var body_flip_visual_nudge_x: float = 0.0
 @export var walk_bob_amplitude: float = 1.25
 @export var walk_bob_frequency: float = 9.5
 @export var walk_tilt_amplitude: float = 0.022
@@ -26,14 +28,21 @@ extends CharacterBody2D
 @export var idle_bob_frequency: float = 3.3
 @export var idle_tilt_amplitude: float = 0.006
 @export var idle_tilt_frequency: float = 4.2
-@export var held_tool_hand_offset_x: float = 14.5
-@export var held_tool_hand_offset_y: float = -2.0
+@export var held_tool_hand_offset_x: float = 22.0
+@export var held_tool_hand_offset_y: float = 6.0
+## Strip art is upright; tilt so handle sits near the body hand and head points outward.
+@export var held_tool_idle_rotation_deg: float = -38.0
 ## Multiplied by body_visual_scale for held tool strip (columns are large PNGs).
-@export var held_tool_scale_coefficient: float = 0.038
+@export var held_tool_scale_coefficient: float = 2.0
+@export var sword_tool_scale_multiplier: float = 1.12
 @export var sword_bob_knockback_strength: float = 430.0
 @export var melee_attack_range: float = 86.0
+@export var sword_melee_attack_range: float = 118.0
 @export var melee_attack_vertical_tolerance: float = 58.0
+@export var sword_melee_vertical_tolerance: float = 92.0
 @export var melee_attack_cooldown_seconds: float = 0.32
+## Bare-hand mining/gathering vs proper tools (higher = slower hand breaks).
+@export_range(1.0, 25.0, 0.5) var bare_hand_mining_slowdown: float = 10.0
 
 var _gather_timer: float = 0.0
 var _manager
@@ -41,7 +50,8 @@ var _time_alive: float = 0.0
 var _last_hint: String = "Collect resources with [E]."
 var _action_timer: float = 0.0
 var _action_state: String = "idle"
-var _selected_tool: String = "pickaxe"
+const NONE_TOOL := "none"
+var _selected_tool: String = NONE_TOOL
 var _tool_number_latch: Array[bool] = [false, false, false, false, false]
 var _tilled_scene := preload("res://scenes/TilledPatch.tscn")
 var _crop_scene := preload("res://scenes/CropNode.tscn")
@@ -51,16 +61,18 @@ var _is_grounded: bool = false
 var _knockback_velocity: Vector2 = Vector2.ZERO
 var _last_move_x: float = 0.0
 var _place_kind: String = "dirt"
-var _place_kinds: Array[String] = ["dirt", "stone", "grass_block", "reinforced"]
+var _place_kinds: Array[String] = ["dirt", "stone", "reinforced"]
 var _place_cooldown: float = 0.0
 var _totem_scene := preload("res://scenes/PlacedTotem.tscn")
 var _melee_cooldown: float = 0.0
 
-@onready var _tool_sprite: Sprite2D = $HeldTool/ToolSprite
+@onready var _tool_swing_pivot: Node2D = $HeldTool/SwingPivot
+@onready var _tool_sprite: Sprite2D = $HeldTool/SwingPivot/ToolSprite
 var _held_tool_atlas: AtlasTexture
 
 func _ready() -> void:
 	add_to_group("player")
+	z_index = actor_world_z_index
 	_manager = get_tree().get_first_node_in_group("game_manager")
 	_world_tiles = get_tree().current_scene.get_node("WorldTiles") as TileMapLayer
 	var strip: Texture2D = ToolStripIcons.strip_texture()
@@ -70,13 +82,47 @@ func _ready() -> void:
 		_held_tool_atlas.region = ToolStripIcons.region_for_tool(_selected_tool)
 		_tool_sprite.texture = _held_tool_atlas
 		_apply_held_tool_sprite_scale()
+	_ensure_valid_tool_selection()
+	_sanitize_place_kind_if_needed()
+
+
+func _sanitize_place_kind_if_needed() -> void:
+	if _place_kinds.find(_place_kind) >= 0:
+		return
+	_place_kind = "dirt"
+	_select_available_place_kind_if_needed()
+
 
 func _apply_held_tool_sprite_scale() -> void:
 	if not _tool_sprite:
 		return
+	if _selected_tool == NONE_TOOL:
+		return
 	# Strip art is ~205px wide per tool; body is ~16px * body_visual_scale — match that order of magnitude.
 	var s := clampf(body_visual_scale * held_tool_scale_coefficient, 0.12, 0.42)
+	if _selected_tool == "sword":
+		s *= sword_tool_scale_multiplier
 	_tool_sprite.scale = Vector2(s, s)
+	# Shift the texture up (in its own local pixel space) so the pommel sits at the SwingPivot origin.
+	# Rotation on SwingPivot now pivots around the bottom of the handle instead of the texture center.
+	_tool_sprite.offset = Vector2(0.0, held_tool_pivot_y_pixels)
+	_update_held_tool_pivot_layout()
+
+
+func _held_strip_half_height_px() -> float:
+	var h := float(ToolStripIcons.SLICE_H)
+	if _held_tool_atlas:
+		h = _held_tool_atlas.region.size.y
+	return h * _tool_sprite.scale.y * 0.5
+
+
+## Rotate around pommel (bottom of handle): pivot stays at grip-side pommel; sprite center sits above it.
+func _update_held_tool_pivot_layout() -> void:
+	if not _tool_swing_pivot or not _tool_sprite:
+		return
+	var half := _held_strip_half_height_px()
+	_tool_swing_pivot.position = Vector2(12.0, 14.0 + half)
+	_tool_sprite.position = Vector2(0.0, -half)
 
 func _physics_process(delta: float) -> void:
 	_time_alive += delta
@@ -183,6 +229,9 @@ func _handle_interact() -> void:
 func _handle_mine() -> void:
 	if _attack_hostile_nearby():
 		return
+	if _selected_tool == "sword":
+		_last_hint = "Sword attacks only hit actors."
+		return
 	# Left-click: mine what the cursor is pointing at (tile or tree).
 	if _try_mine_tile_under_cursor():
 		_set_action("mine", 0.22)
@@ -220,6 +269,8 @@ func _try_mine_resource_under_cursor() -> bool:
 	return false
 
 func _attack_hostile_nearby() -> bool:
+	if _selected_tool == NONE_TOOL:
+		return false
 	if _selected_tool == "hoe":
 		return false
 	if _melee_cooldown > 0.0:
@@ -232,6 +283,8 @@ func _attack_hostile_nearby() -> bool:
 		_last_hint = "Hit monster with %s." % _selected_tool
 		return true
 	var bob := _find_nearest_group_node("bob_agent")
+	if bob and bob.has_method("is_defeated") and bob.is_defeated():
+		return false
 	if bob and bob.has_method("receive_damage") and _is_target_in_melee_range(bob):
 		if _selected_tool == "sword":
 			var hit_dir := signf((bob as Node2D).global_position.x - global_position.x)
@@ -256,9 +309,14 @@ func _attack_hostile_nearby() -> bool:
 
 func _is_target_in_melee_range(target: Node2D) -> bool:
 	var to_target := target.global_position - global_position
-	if absf(to_target.y) > melee_attack_vertical_tolerance:
+	var vertical_tolerance := melee_attack_vertical_tolerance
+	var range_limit := melee_attack_range
+	if _selected_tool == "sword":
+		vertical_tolerance = sword_melee_vertical_tolerance
+		range_limit = sword_melee_attack_range
+	if absf(to_target.y) > vertical_tolerance:
 		return false
-	return to_target.length() <= melee_attack_range
+	return to_target.length() <= range_limit
 
 func _try_hoe_crop_actions() -> bool:
 	var crop := _find_nearest_group_node("crops")
@@ -326,17 +384,8 @@ func _update_visuals(input_vector: Vector2) -> void:
 	if not body:
 		return
 	if held_tool and _manager:
-		held_tool.visible = _manager.inventory["pickaxe"] > 0 or _manager.inventory["axe"] > 0 or _manager.inventory["sword"] > 0 or _manager.inventory["hoe"] > 0 or _manager.inventory["shovel"] > 0
-		if _selected_tool == "pickaxe" and _manager.inventory["pickaxe"] <= 0:
-			_selected_tool = "axe" if _manager.inventory["axe"] > 0 else ("sword" if _manager.inventory["sword"] > 0 else ("shovel" if _manager.inventory["shovel"] > 0 else ("hoe" if _manager.inventory["hoe"] > 0 else "shovel")))
-		if _selected_tool == "axe" and _manager.inventory["axe"] <= 0:
-			_selected_tool = "pickaxe" if _manager.inventory["pickaxe"] > 0 else ("sword" if _manager.inventory["sword"] > 0 else ("shovel" if _manager.inventory["shovel"] > 0 else ("hoe" if _manager.inventory["hoe"] > 0 else "shovel")))
-		if _selected_tool == "sword" and _manager.inventory["sword"] <= 0:
-			_selected_tool = "pickaxe" if _manager.inventory["pickaxe"] > 0 else ("axe" if _manager.inventory["axe"] > 0 else ("shovel" if _manager.inventory["shovel"] > 0 else ("hoe" if _manager.inventory["hoe"] > 0 else "shovel")))
-		if _selected_tool == "hoe" and _manager.inventory["hoe"] <= 0:
-			_selected_tool = "pickaxe" if _manager.inventory["pickaxe"] > 0 else ("axe" if _manager.inventory["axe"] > 0 else ("sword" if _manager.inventory["sword"] > 0 else ("shovel" if _manager.inventory["shovel"] > 0 else "hoe")))
-		if _selected_tool == "shovel" and _manager.inventory["shovel"] <= 0:
-			_selected_tool = "pickaxe" if _manager.inventory["pickaxe"] > 0 else ("axe" if _manager.inventory["axe"] > 0 else ("sword" if _manager.inventory["sword"] > 0 else ("hoe" if _manager.inventory["hoe"] > 0 else "shovel")))
+		var equipped := _selected_tool != NONE_TOOL and int(_manager.inventory.get(_selected_tool, 0)) >= 1
+		held_tool.visible = equipped
 	if input_vector.length() > 0.05:
 		var move_intensity := clampf(absf(input_vector.x), 0.0, 1.0)
 		var walk_wave := sin(_time_alive * walk_bob_frequency)
@@ -349,20 +398,26 @@ func _update_visuals(input_vector: Vector2) -> void:
 		body.rotation = sin(_time_alive * idle_tilt_frequency) * idle_tilt_amplitude
 		body.scale.y = base_scale
 
+	var facing_sign := -1.0 if body.scale.x < 0.0 else 1.0
+	body.position.x = body_flip_visual_nudge_x * facing_sign
+
 	if held_tool:
-		var facing_sign := -1.0 if body.scale.x < 0.0 else 1.0
 		held_tool.position.x = held_tool_hand_offset_x * facing_sign
 		held_tool.position.y = body.position.y + held_tool_hand_offset_y
 		held_tool.scale.x = facing_sign
 		held_tool.rotation = 0.0
-		if _action_state == "mine":
-			held_tool.rotation = sin(_time_alive * 28.0) * 0.72 * facing_sign
-		elif _action_state == "collect":
-			held_tool.rotation = sin(_time_alive * 16.0) * 0.2 * facing_sign
-		elif _action_state == "feed":
-			held_tool.rotation = (-0.28 + sin(_time_alive * 22.0) * 0.1) * facing_sign
-		elif _action_state == "craft":
-			held_tool.rotation = sin(_time_alive * 24.0) * 0.4 * facing_sign
+		var swing := _tool_swing_pivot
+		var base_rot := deg_to_rad(held_tool_idle_rotation_deg)
+		if swing:
+			swing.rotation = base_rot
+			if _action_state == "mine":
+				swing.rotation = base_rot + sin(_time_alive * 28.0) * 0.72 * facing_sign
+			elif _action_state == "collect":
+				swing.rotation = base_rot + sin(_time_alive * 16.0) * 0.2 * facing_sign
+			elif _action_state == "feed":
+				swing.rotation = base_rot + (-0.28 + sin(_time_alive * 22.0) * 0.1) * facing_sign
+			elif _action_state == "craft":
+				swing.rotation = base_rot + sin(_time_alive * 24.0) * 0.4 * facing_sign
 	if gather_fx:
 		gather_fx.position.x = -24.0 if body.scale.x < 0.0 else 24.0
 		# Mine swing uses the strip tool sprite; keep sparkle only for "collect" to avoid a smeared shape near the head.
@@ -370,8 +425,9 @@ func _update_visuals(input_vector: Vector2) -> void:
 		if gather_fx.visible:
 			gather_fx.rotation = sin(_time_alive * 36.0) * 0.5
 			gather_fx.scale = Vector2(0.8 + absf(sin(_time_alive * 20.0)) * 0.5, 0.8)
-	if _held_tool_atlas and _tool_sprite:
+	if _held_tool_atlas and _tool_sprite and _selected_tool != NONE_TOOL:
 		_held_tool_atlas.region = ToolStripIcons.region_for_tool(_selected_tool)
+		_apply_held_tool_sprite_scale()
 		if _action_state == "craft":
 			_tool_sprite.modulate = Color(0.87, 0.76, 0.42, 1.0)
 		else:
@@ -385,6 +441,9 @@ func _try_feed_bob() -> void:
 	if not _manager:
 		return
 	var bob := _find_nearest_group_node("bob_agent")
+	if bob and bob.has_method("is_defeated") and bob.is_defeated():
+		_last_hint = "B.O.B. is down."
+		return
 	if not bob:
 		_last_hint = "B.O.B. is not nearby."
 		return
@@ -408,6 +467,7 @@ func get_selected_tool() -> String:
 func apply_debug_default_tool() -> void:
 	if _manager and int(_manager.inventory.get("pickaxe", 0)) > 0:
 		_selected_tool = "pickaxe"
+	_ensure_valid_tool_selection()
 
 func get_last_move_x() -> float:
 	return _last_move_x
@@ -424,8 +484,23 @@ func _update_tool_selection() -> void:
 	for i in range(5):
 		var down := Input.is_physical_key_pressed(keys[i])
 		if down and not _tool_number_latch[i]:
-			_selected_tool = names[i]
+			if _manager and int(_manager.inventory.get(names[i], 0)) >= 1:
+				_selected_tool = names[i]
 		_tool_number_latch[i] = down
+	_ensure_valid_tool_selection()
+
+
+func _ensure_valid_tool_selection() -> void:
+	if not _manager:
+		return
+	const ORDER: Array[String] = ["sword", "pickaxe", "axe", "shovel", "hoe"]
+	if _selected_tool != NONE_TOOL and int(_manager.inventory.get(_selected_tool, 0)) >= 1:
+		return
+	for n in ORDER:
+		if int(_manager.inventory.get(n, 0)) >= 1:
+			_selected_tool = n
+			return
+	_selected_tool = NONE_TOOL
 
 func _move_character(move_x: float, delta: float) -> void:
 	if not _world_tiles:
@@ -519,7 +594,7 @@ func _try_mine_tile_under_cursor() -> bool:
 	var tier_mult := 1.0
 	if _manager and _manager.has_method("get_tool_mining_multiplier"):
 		tier_mult = float(_manager.get_tool_mining_multiplier(_selected_tool))
-	var result: Dictionary = _world_tiles.try_mine_cell(target_cell, _selected_tool, tier_mult)
+	var result: Dictionary = _world_tiles.try_mine_cell(target_cell, _selected_tool, tier_mult, bare_hand_mining_slowdown)
 	if not bool(result.get("ok", false)):
 		var reason := str(result.get("reason", ""))
 		if reason == "needs_pickaxe":
@@ -531,6 +606,7 @@ func _try_mine_tile_under_cursor() -> bool:
 		return false
 	if bool(result.get("mined", false)):
 		var drops: Array = result.get("drops", [])
+		var fb := str(result.get("mine_feedback", ""))
 		var primary_kind := ""
 		for drop in drops:
 			var kind := str(drop.get("kind", ""))
@@ -541,7 +617,10 @@ func _try_mine_tile_under_cursor() -> bool:
 					primary_kind = kind
 		if primary_kind == "":
 			primary_kind = str(result.get("drop_kind", ""))
-		_last_hint = "Mined %s block." % (primary_kind if primary_kind != "" else "terrain")
+		if fb != "":
+			_last_hint = fb
+		else:
+			_last_hint = "Mined %s block." % (primary_kind if primary_kind != "" else "terrain")
 	else:
 		var pct := int(float(result.get("progress", 0.0)) * 100.0)
 		_last_hint = "Mining block... %d%%" % pct
@@ -565,7 +644,7 @@ func _try_place_block_under_cursor() -> bool:
 	if not _manager.inventory.has(_place_kind):
 		_manager.inventory[_place_kind] = 0
 	if int(_manager.inventory[_place_kind]) <= 0:
-		_last_hint = "Out of placeable blocks. Mine dirt/grass/stone first."
+		_last_hint = "Out of placeable blocks. Mine dirt or stone first."
 		return false
 	var cursor_world := get_global_mouse_position()
 	var player_feet := global_position + Vector2(0, surface_foot_offset)
@@ -685,6 +764,8 @@ func _is_blocked_line_to_target_world(start_world: Vector2, target_cell: Vector2
 func _tool_gather_power(tool: String) -> float:
 	var base: float
 	match tool:
+		NONE_TOOL:
+			base = 1.0 / maxf(1.0, bare_hand_mining_slowdown)
 		"pickaxe":
 			base = 1.3
 		"axe":
