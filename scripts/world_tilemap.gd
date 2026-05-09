@@ -27,6 +27,7 @@ var _tile_damage: Dictionary = {}
 var _generated_min_x: int = 0
 var _generated_max_x: int = -1
 var _terrain_rng: RandomNumberGenerator
+var _mining_darken_overlay: Polygon2D
 
 func _ready() -> void:
 	y_sort_enabled = false
@@ -38,6 +39,7 @@ func _ready() -> void:
 
 func paint_world() -> void:
 	clear()
+	clear_mining_cell_darken()
 	_surface_cells.clear()
 	_surface_y_by_x.clear()
 	_tile_damage.clear()
@@ -301,6 +303,36 @@ func is_solid_world_point(world_pos: Vector2) -> bool:
 func _cell_key(cell: Vector2i) -> String:
 	return "%d:%d" % [cell.x, cell.y]
 
+
+func _ensure_mining_darken_overlay() -> void:
+	if _mining_darken_overlay:
+		return
+	_mining_darken_overlay = Polygon2D.new()
+	_mining_darken_overlay.z_index = 2
+	_mining_darken_overlay.polygon = PackedVector2Array([
+		Vector2(0, 0),
+		Vector2(float(TILE_SIZE), 0),
+		Vector2(float(TILE_SIZE), float(TILE_SIZE)),
+		Vector2(0, float(TILE_SIZE)),
+	])
+	_mining_darken_overlay.visible = false
+	add_child(_mining_darken_overlay)
+
+
+## Darken the cell currently being mined (player feedback). Cleared when mining stops or block breaks.
+func set_mining_cell_darken(cell: Vector2i, progress_01: float) -> void:
+	_ensure_mining_darken_overlay()
+	var p := clampf(progress_01, 0.0, 1.0)
+	var alpha := lerpf(0.14, 0.44, p)
+	_mining_darken_overlay.color = Color(0.02, 0.02, 0.05, alpha)
+	_mining_darken_overlay.position = map_to_local(cell)
+	_mining_darken_overlay.visible = true
+
+
+func clear_mining_cell_darken() -> void:
+	if _mining_darken_overlay:
+		_mining_darken_overlay.visible = false
+
 func _required_hits_for_source(source_id: int) -> int:
 	match source_id:
 		GRASS_MIDDLE_SOURCE_ID, GRASS_LEFT_SOURCE_ID, GRASS_RIGHT_SOURCE_ID, GRASS_FULL_SOURCE_ID:
@@ -317,7 +349,7 @@ func _required_hits_for_source(source_id: int) -> int:
 func _primary_drop_kind_for_source(source_id: int) -> String:
 	match source_id:
 		GRASS_MIDDLE_SOURCE_ID, GRASS_LEFT_SOURCE_ID, GRASS_RIGHT_SOURCE_ID, GRASS_FULL_SOURCE_ID:
-			return "dirt"
+			return "grass_block"
 		DIRT_SOURCE_ID:
 			return "dirt"
 		STONE_SOURCE_ID:
@@ -338,9 +370,9 @@ func _build_drops_for_source(source_id: int) -> Array:
 		_:
 			return []
 
-## Grass blocks become dirt tiles when fully mined; bonus loot matches old turf feel (no grass_block item).
+## Mined surface grass: grass_block (+ optional seeds); tile is removed (air), not replaced with dirt.
 func _build_drops_for_grass_stripped_to_dirt() -> Array:
-	var drops: Array = [{"kind": "food", "amount": 1}]
+	var drops: Array = [{"kind": "grass_block", "amount": 1}]
 	if _terrain_rng and _terrain_rng.randf() < 0.18:
 		drops.append({"kind": "seeds", "amount": 1})
 	return drops
@@ -350,7 +382,7 @@ func _build_drops_for_grass_stripped_to_dirt() -> Array:
 func _drop_kind_for_source(source_id: int) -> String:
 	return _primary_drop_kind_for_source(source_id)
 
-func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, bare_hand_slowdown: float = 10.0) -> Dictionary:
+func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, bare_hand_slowdown: float = 5.0) -> Dictionary:
 	var source_id := get_cell_source_id(cell)
 	if source_id == -1:
 		return {"ok": false, "reason": "empty"}
@@ -361,17 +393,23 @@ func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, 
 		return {"ok": false, "reason": "needs_pickaxe"}
 	var key := _cell_key(cell)
 	var damage := 1
-	if tool == "pickaxe" and source_id == 2:
+	var matched_tool := false
+	# Pickaxe: stone & reinforced only. Shovel: dirt & surface grass only. No other tool gets tile bonuses.
+	if tool == "pickaxe" and source_id == STONE_SOURCE_ID:
 		damage = 2
-	elif tool == "axe" and source_id == 1:
+		matched_tool = true
+	elif tool == "pickaxe" and source_id == REINFORCED_SOURCE_ID:
 		damage = 2
-	elif tool == "shovel" and source_id == 1:
+		matched_tool = true
+	elif tool == "shovel" and source_id == DIRT_SOURCE_ID:
 		damage = 3
+		matched_tool = true
 	elif tool == "shovel" and _is_grass_source_id(source_id):
 		damage = 2
+		matched_tool = true
 	var mult := clampf(tier_damage_mult, 1.0, 2.5)
 	var damage_f := float(damage) * mult
-	if tool == "none":
+	if tool == "none" or not matched_tool:
 		var slow := maxf(1.0, bare_hand_slowdown)
 		damage_f /= slow
 	_tile_damage[key] = float(_tile_damage.get(key, 0.0)) + damage_f
@@ -390,9 +428,9 @@ func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, 
 	var drops: Array
 	var mine_feedback := ""
 	if _is_grass_source_id(source_id):
-		set_cell(cell, DIRT_SOURCE_ID, Vector2i.ZERO)
+		set_cell(cell, -1, Vector2i.ZERO)
 		drops = _build_drops_for_grass_stripped_to_dirt()
-		mine_feedback = "Stripped grass — exposed dirt."
+		mine_feedback = "Collected grass block."
 	else:
 		set_cell(cell, -1, Vector2i.ZERO)
 		drops = _build_drops_for_source(source_id)
