@@ -12,3 +12,5 @@
 # Env / secrets
 .env
 .env.*
+# Local Godot study notes (machine-specific)
+GODOT_NOTES.local.md
