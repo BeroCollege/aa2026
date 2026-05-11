@@ -3,15 +3,36 @@ extends Control
 const MAIN_SCENE := "res://scenes/Main.tscn"
 const START_BG_PATH := "res://assets/ui/bob_attack_start_screen.png"
 
+const _SETTINGS_SECTION := "GameSettings"
+const _KEY_MASTER_PCT := "master_volume_pct"
+const _KEY_MUSIC_PCT := "music_volume_pct"
+const _KEY_SFX_PCT := "sfx_volume_pct"
+const _KEY_FULLSCREEN := "fullscreen"
+const _KEY_VSYNC := "vsync"
+
+const _BUS_MASTER := &"Master"
+const _BUS_MUSIC := &"Music"
+const _BUS_SFX := &"SFX"
+
 @onready var _background_image: TextureRect = $BackgroundImage
 @onready var _btn_start: Button = $MenuAnchor/Menu/BtnStart
 @onready var _btn_settings: Button = $MenuAnchor/Menu/BtnSettings
-@onready var _btn_credits: Button = $MenuAnchor/Menu/BtnCredits
 @onready var _btn_quit: Button = $MenuAnchor/Menu/BtnQuit
 @onready var _dialog: Panel = $Dialog
 @onready var _dialog_title: Label = $Dialog/Margin/VBox/DialogTitle
-@onready var _dialog_body: Label = $Dialog/Margin/VBox/DialogBody
+@onready var _settings_panel: Control = $Dialog/Margin/VBox/SettingsPanel
+@onready var _slider_master: HSlider = $Dialog/Margin/VBox/SettingsPanel/VolumeRows/MasterRow/SliderMaster
+@onready var _lbl_master_pct: Label = $Dialog/Margin/VBox/SettingsPanel/VolumeRows/MasterRow/LblMasterPct
+@onready var _slider_music: HSlider = $Dialog/Margin/VBox/SettingsPanel/VolumeRows/MusicRow/SliderMusic
+@onready var _lbl_music_pct: Label = $Dialog/Margin/VBox/SettingsPanel/VolumeRows/MusicRow/LblMusicPct
+@onready var _slider_sfx: HSlider = $Dialog/Margin/VBox/SettingsPanel/VolumeRows/SfxRow/SliderSfx
+@onready var _lbl_sfx_pct: Label = $Dialog/Margin/VBox/SettingsPanel/VolumeRows/SfxRow/LblSfxPct
+@onready var _chk_fullscreen: CheckBox = $Dialog/Margin/VBox/SettingsPanel/ChkFullscreen
+@onready var _chk_vsync: CheckBox = $Dialog/Margin/VBox/SettingsPanel/ChkVsync
+@onready var _keybinds_label: Label = $Dialog/Margin/VBox/SettingsPanel/KeybindsLabel
 @onready var _dialog_back: Button = $Dialog/Margin/VBox/DialogBack
+
+var _suppress_settings_persist: bool = false
 
 ## Order matches `project.godot` gameplay actions (readable labels).
 const _ACTION_LABELS: Array = [
@@ -36,10 +57,18 @@ func _ready() -> void:
 	_apply_start_screen_background_texture()
 	_btn_start.pressed.connect(_on_start_pressed)
 	_btn_settings.pressed.connect(_on_settings_pressed)
-	_btn_credits.pressed.connect(_on_credits_pressed)
 	_btn_quit.pressed.connect(_on_quit_pressed)
 	_dialog_back.pressed.connect(_close_dialog)
 	_dialog.visible = false
+
+	_slider_master.value_changed.connect(_on_master_volume_changed)
+	_slider_music.value_changed.connect(_on_music_volume_changed)
+	_slider_sfx.value_changed.connect(_on_sfx_volume_changed)
+	_chk_fullscreen.toggled.connect(_on_fullscreen_toggled)
+	_chk_vsync.toggled.connect(_on_vsync_toggled)
+
+	_apply_saved_game_settings_at_startup()
+
 	_btn_start.grab_focus()
 
 
@@ -83,13 +112,9 @@ func _on_start_pressed() -> void:
 
 func _on_settings_pressed() -> void:
 	_dialog_title.text = "Settings"
-	_dialog_body.text = "Coming soon."
-	_open_dialog()
-
-
-func _on_credits_pressed() -> void:
-	_dialog_title.text = "Credits"
-	_dialog_body.text = "Coming soon.\n\nKeybinds:\n%s" % _build_keybinds_text()
+	_settings_panel.visible = true
+	_keybinds_label.text = "Keybinds:\n\n%s" % _build_keybinds_text()
+	_refresh_settings_widgets_from_disk()
 	_open_dialog()
 
 
@@ -99,10 +124,12 @@ func _on_quit_pressed() -> void:
 
 func _open_dialog() -> void:
 	_dialog.visible = true
+	_dialog_back.grab_focus()
 
 
 func _close_dialog() -> void:
 	_dialog.visible = false
+	_settings_panel.visible = false
 	_btn_start.grab_focus()
 
 
@@ -131,3 +158,126 @@ func _build_keybinds_text() -> String:
 	lines.append("[1–5] Select tool — sword, pickaxe, axe, shovel, hoe")
 	lines.append("[6] Craft shovel (while craft menu is open)")
 	return "\n".join(lines)
+
+
+func _default_game_settings() -> Dictionary:
+	return {
+		_KEY_MASTER_PCT: 100.0,
+		_KEY_MUSIC_PCT: 100.0,
+		_KEY_SFX_PCT: 100.0,
+		_KEY_FULLSCREEN: false,
+		_KEY_VSYNC: true,
+	}
+
+
+func _read_game_settings_from_disk() -> Dictionary:
+	var out := _default_game_settings()
+	var cfg := ConfigFile.new()
+	if cfg.load(RunRecords.SETTINGS_PATH) != OK:
+		return out
+	for k in out.keys():
+		if cfg.has_section_key(_SETTINGS_SECTION, k):
+			out[k] = cfg.get_value(_SETTINGS_SECTION, k)
+	return out
+
+
+func _apply_saved_game_settings_at_startup() -> void:
+	var s := _read_game_settings_from_disk()
+	_apply_bus_volume_pct(_BUS_MASTER, float(s[_KEY_MASTER_PCT]))
+	_apply_bus_volume_pct(_BUS_MUSIC, float(s[_KEY_MUSIC_PCT]))
+	_apply_bus_volume_pct(_BUS_SFX, float(s[_KEY_SFX_PCT]))
+	_apply_fullscreen(bool(s[_KEY_FULLSCREEN]))
+	_apply_vsync(bool(s[_KEY_VSYNC]))
+
+
+func _refresh_settings_widgets_from_disk() -> void:
+	var s := _read_game_settings_from_disk()
+	_suppress_settings_persist = true
+	_slider_master.value = float(s[_KEY_MASTER_PCT])
+	_slider_music.value = float(s[_KEY_MUSIC_PCT])
+	_slider_sfx.value = float(s[_KEY_SFX_PCT])
+	_chk_fullscreen.button_pressed = bool(s[_KEY_FULLSCREEN])
+	_chk_vsync.button_pressed = bool(s[_KEY_VSYNC])
+	_update_volume_pct_labels()
+	_suppress_settings_persist = false
+
+
+func _persist_game_settings_merge() -> void:
+	if _suppress_settings_persist:
+		return
+	var cfg := ConfigFile.new()
+	cfg.load(RunRecords.SETTINGS_PATH)
+	cfg.set_value(_SETTINGS_SECTION, _KEY_MASTER_PCT, _slider_master.value)
+	cfg.set_value(_SETTINGS_SECTION, _KEY_MUSIC_PCT, _slider_music.value)
+	cfg.set_value(_SETTINGS_SECTION, _KEY_SFX_PCT, _slider_sfx.value)
+	cfg.set_value(_SETTINGS_SECTION, _KEY_FULLSCREEN, _chk_fullscreen.button_pressed)
+	cfg.set_value(_SETTINGS_SECTION, _KEY_VSYNC, _chk_vsync.button_pressed)
+	cfg.save(RunRecords.SETTINGS_PATH)
+
+
+func _apply_bus_volume_pct(bus_name: StringName, pct: float) -> void:
+	var idx := AudioServer.get_bus_index(bus_name)
+	if idx < 0:
+		return
+	var lin := clampf(pct / 100.0, 0.0, 1.0)
+	if lin <= 0.0001:
+		AudioServer.set_bus_mute(idx, true)
+		return
+	AudioServer.set_bus_mute(idx, false)
+	AudioServer.set_bus_volume_db(idx, linear_to_db(lin))
+
+
+func _apply_fullscreen(enabled: bool) -> void:
+	if enabled:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+
+
+func _apply_vsync(enabled: bool) -> void:
+	var mode := DisplayServer.VSYNC_ENABLED if enabled else DisplayServer.VSYNC_DISABLED
+	DisplayServer.window_set_vsync_mode(mode)
+
+
+func _update_volume_pct_labels() -> void:
+	_lbl_master_pct.text = "%d%%" % int(round(_slider_master.value))
+	_lbl_music_pct.text = "%d%%" % int(round(_slider_music.value))
+	_lbl_sfx_pct.text = "%d%%" % int(round(_slider_sfx.value))
+
+
+func _on_master_volume_changed(value: float) -> void:
+	if _suppress_settings_persist:
+		return
+	_apply_bus_volume_pct(_BUS_MASTER, value)
+	_lbl_master_pct.text = "%d%%" % int(round(value))
+	_persist_game_settings_merge()
+
+
+func _on_music_volume_changed(value: float) -> void:
+	if _suppress_settings_persist:
+		return
+	_apply_bus_volume_pct(_BUS_MUSIC, value)
+	_lbl_music_pct.text = "%d%%" % int(round(value))
+	_persist_game_settings_merge()
+
+
+func _on_sfx_volume_changed(value: float) -> void:
+	if _suppress_settings_persist:
+		return
+	_apply_bus_volume_pct(_BUS_SFX, value)
+	_lbl_sfx_pct.text = "%d%%" % int(round(value))
+	_persist_game_settings_merge()
+
+
+func _on_fullscreen_toggled(button_pressed: bool) -> void:
+	if _suppress_settings_persist:
+		return
+	_apply_fullscreen(button_pressed)
+	_persist_game_settings_merge()
+
+
+func _on_vsync_toggled(button_pressed: bool) -> void:
+	if _suppress_settings_persist:
+		return
+	_apply_vsync(button_pressed)
+	_persist_game_settings_merge()

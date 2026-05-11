@@ -1,7 +1,8 @@
 extends Area2D
 
 @export var wood_yield: int = 5
-@export var hits_required: int = 4
+## Overridden per variant in `_apply_variant` (small 5, classic 6, big 7 bare-hand swings).
+@export var hits_required: int = 6
 
 const TEX_FULL_TREE_BIG := preload("res://assets/decor/tree_big.png")
 const TEX_FULL_TREE_SMALL := preload("res://assets/decor/tree_small.png")
@@ -18,13 +19,19 @@ var _gather_progress: float = 0.0
 
 func _ready() -> void:
 	add_to_group("resource_nodes")
+	add_to_group("trees")
 	z_index = 1
 	_apply_variant()
 
 func gather(selected_tool: String = "", gather_power: float = 1.0) -> Dictionary:
-	var effective_power := gather_power
+	# Only the axe is a proper tree tool; every other equipped tool chops at bare-hand speed.
+	var effective_power: float
 	if selected_tool == "axe":
-		effective_power *= 1.8
+		effective_power = gather_power * 1.8
+	elif selected_tool == "none" or selected_tool == "":
+		effective_power = gather_power
+	else:
+		effective_power = 1.0
 	_gather_progress += effective_power
 	_play_hit_feedback()
 	var need := float(hits_required)
@@ -59,6 +66,14 @@ func _play_hit_feedback() -> void:
 	)
 
 func _apply_variant() -> void:
+	match variant:
+		TreeVariant.SMALL:
+			hits_required = 5
+		TreeVariant.BIG:
+			hits_required = 7
+		_:
+			hits_required = 6
+
 	var full_tree := get_node_or_null("FullTree") as Sprite2D
 	var classic_nodes := [
 		$Trunk as Sprite2D,

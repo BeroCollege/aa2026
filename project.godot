@@ -19,6 +19,10 @@ run/main_scene="res://scenes/StartScreen.tscn"
 config/features=PackedStringArray("4.6")
 config/icon="res://assets/icon.svg"
 
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
+
 [autoload]
 
 RunRecords="*res://scripts/run_records.gd"

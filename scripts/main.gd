@@ -31,7 +31,6 @@ extends Node2D
 var _slot_wood: Label
 var _slot_stone: Label
 var _slot_food: Label
-var _slot_seeds: Label
 @onready var _panel_sword: Panel = $CanvasLayer/Hotbar/SlotSword
 @onready var _panel_pickaxe: Panel = $CanvasLayer/Hotbar/SlotPickaxe
 @onready var _panel_axe: Panel = $CanvasLayer/Hotbar/SlotAxe
@@ -70,6 +69,9 @@ var _upgrade_hoe_button: Button
 var _upgrade_shovel_button: Button
 const TREE_SCENE := preload("res://scenes/TreeNode.tscn")
 const BERRY_BUSH_SCENE := preload("res://scenes/BerryBush.tscn")
+const _CRAFT_FOOD_TEX: Texture2D = preload("res://assets/blockpack/resource_food.png")
+const _CRAFT_WOOD_TEX: Texture2D = preload("res://assets/blockpack/resource_wood.png")
+const _CRAFT_TILE_STONE_TEX: Texture2D = preload("res://assets/blockpack/tile_stone.png")
 @export var decoration_stream_margin_tiles: int = 40
 @export var tree_spawn_interval_tiles: int = 12
 @export var tree_min_spacing_tiles: int = 8
@@ -240,6 +242,43 @@ func _apply_tool_strip_icons() -> void:
 		var craft_icon := get_node_or_null(craft[c]) as TextureRect
 		if craft_icon:
 			craft_icon.texture = ToolStripIcons.atlas_texture_for_tool(c)
+			_prepare_craft_menu_icon_rect(craft_icon)
+	var snack_icon := $CanvasLayer/CraftMenu/CraftSnackIcon as TextureRect
+	if snack_icon:
+		snack_icon.texture = _CRAFT_FOOD_TEX
+		snack_icon.modulate = Color.WHITE
+		_prepare_craft_menu_icon_rect(snack_icon)
+	var meal_icon := $CanvasLayer/CraftMenu/CraftMealIcon as TextureRect
+	if meal_icon:
+		meal_icon.texture = _CRAFT_FOOD_TEX
+		meal_icon.modulate = Color(1.0, 0.82, 0.66, 1.0)
+		_prepare_craft_menu_icon_rect(meal_icon)
+
+
+func _prepare_craft_menu_icon_rect(icon: TextureRect) -> void:
+	if not icon:
+		return
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+
+func _add_craft_row_icon_for_button(btn: Button, tex: Texture2D, mod: Color = Color.WHITE) -> void:
+	if not btn or not tex:
+		return
+	var icon := TextureRect.new()
+	icon.name = btn.name.replace("Button", "Icon")
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.offset_left = 12.0
+	var top := btn.offset_top
+	icon.offset_top = top - 2.0
+	icon.offset_right = 44.0
+	icon.offset_bottom = top + 30.0
+	icon.texture = tex
+	icon.modulate = mod
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_craft_menu.add_child(icon)
 
 
 func _configure_hotbar_tool_key_hints() -> void:
@@ -776,7 +815,6 @@ func _update_hotbar_counts() -> void:
 	_slot_wood.text = str(_manager.inventory["wood"])
 	_slot_stone.text = str(_manager.inventory["stone"])
 	_slot_food.text = str(_manager.inventory["food"])
-	_slot_seeds.text = str(_manager.inventory["seeds"])
 	if _slot_dirt_label:
 		_slot_dirt_label.text = str(_manager.inventory.get("dirt", 0))
 	if _slot_reinforced_label:
@@ -919,8 +957,8 @@ func _extend_material_counter_ui() -> void:
 	mc.add_theme_stylebox_override("panel", _material_panel_style())
 	mc.offset_left = 16.0
 	mc.offset_top = 528.0
-	# Wider than chip row (4×74 + gaps) so "Place:" and hints are not clipped at the left edge.
-	mc.offset_right = 440.0
+	# Sized for bottom row 4×74 + gaps + margins.
+	mc.offset_right = 426.0
 	mc.offset_bottom = 712.0
 
 	var margin := MarginContainer.new()
@@ -969,7 +1007,6 @@ func _extend_material_counter_ui() -> void:
 	_slot_wood = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_wood.png"))
 	_slot_stone = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_stone.png"))
 	_slot_food = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_food.png"))
-	_slot_seeds = _make_inventory_chip(row1, preload("res://assets/blockpack/tile_grass.png"))
 
 	var row2 := HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 8)
@@ -1065,20 +1102,28 @@ func _extend_craft_menu_ui() -> void:
 	_craft_menu.offset_bottom = 620.0
 	_craft_shovel_button = _add_craft_button("CraftShovelButton", "Wooden Shovel (Wood)", 256.0)
 	_craft_shovel_button.pressed.connect(_on_craft_shovel_pressed)
+	_add_craft_row_icon_for_button(_craft_shovel_button, ToolStripIcons.atlas_texture_for_tool("shovel"))
 	_craft_totem_button = _add_craft_button("CraftTotemButton", "Calm Totem (5 Wood + 5 Stone)", 290.0)
 	_craft_totem_button.pressed.connect(_on_craft_totem_pressed)
+	_add_craft_row_icon_for_button(_craft_totem_button, _CRAFT_WOOD_TEX, Color(0.52, 0.82, 1.0, 1.0))
 	_craft_reinforced_button = _add_craft_button("CraftReinforcedButton", "Reinforced x4 (2 Wood + 4 Stone)", 324.0)
 	_craft_reinforced_button.pressed.connect(_on_craft_reinforced_pressed)
+	_add_craft_row_icon_for_button(_craft_reinforced_button, _CRAFT_TILE_STONE_TEX)
 	_upgrade_pickaxe_button = _add_craft_button("UpgradePickaxeButton", "Upgrade Pickaxe → Stone", 356.0)
 	_upgrade_pickaxe_button.pressed.connect(_on_upgrade_pickaxe_pressed)
+	_add_craft_row_icon_for_button(_upgrade_pickaxe_button, ToolStripIcons.atlas_texture_for_tool("pickaxe"))
 	_upgrade_axe_button = _add_craft_button("UpgradeAxeButton", "Upgrade Axe → Stone", 386.0)
 	_upgrade_axe_button.pressed.connect(_on_upgrade_axe_pressed)
+	_add_craft_row_icon_for_button(_upgrade_axe_button, ToolStripIcons.atlas_texture_for_tool("axe"))
 	_upgrade_sword_button = _add_craft_button("UpgradeSwordButton", "Upgrade Sword → Stone", 416.0)
 	_upgrade_sword_button.pressed.connect(_on_upgrade_sword_pressed)
+	_add_craft_row_icon_for_button(_upgrade_sword_button, ToolStripIcons.atlas_texture_for_tool("sword"))
 	_upgrade_hoe_button = _add_craft_button("UpgradeHoeButton", "Upgrade Hoe → Stone", 446.0)
 	_upgrade_hoe_button.pressed.connect(_on_upgrade_hoe_pressed)
+	_add_craft_row_icon_for_button(_upgrade_hoe_button, ToolStripIcons.atlas_texture_for_tool("hoe"))
 	_upgrade_shovel_button = _add_craft_button("UpgradeShovelButton", "Upgrade Shovel → Stone", 476.0)
 	_upgrade_shovel_button.pressed.connect(_on_upgrade_shovel_pressed)
+	_add_craft_row_icon_for_button(_upgrade_shovel_button, ToolStripIcons.atlas_texture_for_tool("shovel"))
 	_craft_feedback.offset_top = 506.0
 	_craft_feedback.offset_bottom = 536.0
 

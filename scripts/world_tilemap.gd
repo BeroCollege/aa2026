@@ -27,7 +27,8 @@ var _tile_damage: Dictionary = {}
 var _generated_min_x: int = 0
 var _generated_max_x: int = -1
 var _terrain_rng: RandomNumberGenerator
-var _mining_darken_overlay: Polygon2D
+var _mining_darken_sprite: Sprite2D
+var _mining_darken_atlas: AtlasTexture
 
 func _ready() -> void:
 	y_sort_enabled = false
@@ -304,34 +305,56 @@ func _cell_key(cell: Vector2i) -> String:
 	return "%d:%d" % [cell.x, cell.y]
 
 
-func _ensure_mining_darken_overlay() -> void:
-	if _mining_darken_overlay:
+func _ensure_mining_darken_sprite() -> void:
+	if _mining_darken_sprite:
 		return
-	_mining_darken_overlay = Polygon2D.new()
-	_mining_darken_overlay.z_index = 2
-	_mining_darken_overlay.polygon = PackedVector2Array([
-		Vector2(0, 0),
-		Vector2(float(TILE_SIZE), 0),
-		Vector2(float(TILE_SIZE), float(TILE_SIZE)),
-		Vector2(0, float(TILE_SIZE)),
-	])
-	_mining_darken_overlay.visible = false
-	add_child(_mining_darken_overlay)
+	_mining_darken_sprite = Sprite2D.new()
+	_mining_darken_sprite.z_index = 2
+	_mining_darken_sprite.centered = false
+	_mining_darken_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_mining_darken_atlas = AtlasTexture.new()
+	_mining_darken_sprite.texture = _mining_darken_atlas
+	_mining_darken_sprite.visible = false
+	add_child(_mining_darken_sprite)
 
 
 ## Darken the cell currently being mined (player feedback). Cleared when mining stops or block breaks.
+## Uses the same atlas region as the tile (Sprite2D + modulate); map_to_local is cell **center**, so top-left is center − half tile (+ TileData.texture_origin).
 func set_mining_cell_darken(cell: Vector2i, progress_01: float) -> void:
-	_ensure_mining_darken_overlay()
+	_ensure_mining_darken_sprite()
+	var sid := get_cell_source_id(cell)
+	if sid < 0:
+		clear_mining_cell_darken()
+		return
+	var src: TileSetSource = tile_set.get_source(sid)
+	if src == null or not (src is TileSetAtlasSource):
+		clear_mining_cell_darken()
+		return
+	var atlas_src := src as TileSetAtlasSource
+	var atlas_coords := get_cell_atlas_coords(cell)
+	var region := atlas_src.get_tile_texture_region(atlas_coords)
+	_mining_darken_atlas.atlas = atlas_src.texture
+	_mining_darken_atlas.region = Rect2(region)
+	var td := get_cell_tile_data(cell)
+	var half := Vector2(tile_set.tile_size) * 0.5
+	var top_left := map_to_local(cell) - half
+	if td:
+		top_left += Vector2(td.texture_origin)
+		_mining_darken_sprite.flip_h = td.flip_h
+		_mining_darken_sprite.flip_v = td.flip_v
+	else:
+		_mining_darken_sprite.flip_h = false
+		_mining_darken_sprite.flip_v = false
+	_mining_darken_sprite.position = top_left
 	var p := clampf(progress_01, 0.0, 1.0)
-	var alpha := lerpf(0.14, 0.44, p)
-	_mining_darken_overlay.color = Color(0.02, 0.02, 0.05, alpha)
-	_mining_darken_overlay.position = map_to_local(cell)
-	_mining_darken_overlay.visible = true
+	var dim := lerpf(0.92, 0.62, p)
+	_mining_darken_sprite.modulate = Color(dim, dim, dim, 1.0)
+	_mining_darken_sprite.visible = true
 
 
 func clear_mining_cell_darken() -> void:
-	if _mining_darken_overlay:
-		_mining_darken_overlay.visible = false
+	if _mining_darken_sprite:
+		_mining_darken_sprite.visible = false
 
 func _required_hits_for_source(source_id: int) -> int:
 	match source_id:
@@ -349,7 +372,7 @@ func _required_hits_for_source(source_id: int) -> int:
 func _primary_drop_kind_for_source(source_id: int) -> String:
 	match source_id:
 		GRASS_MIDDLE_SOURCE_ID, GRASS_LEFT_SOURCE_ID, GRASS_RIGHT_SOURCE_ID, GRASS_FULL_SOURCE_ID:
-			return "grass_block"
+			return "dirt"
 		DIRT_SOURCE_ID:
 			return "dirt"
 		STONE_SOURCE_ID:
@@ -370,9 +393,9 @@ func _build_drops_for_source(source_id: int) -> Array:
 		_:
 			return []
 
-## Mined surface grass: grass_block (+ optional seeds); tile is removed (air), not replaced with dirt.
+## Mined surface grass: dirt (+ optional seeds). Tile becomes air (not a dirt block); inventory gets dirt only.
 func _build_drops_for_grass_stripped_to_dirt() -> Array:
-	var drops: Array = [{"kind": "grass_block", "amount": 1}]
+	var drops: Array = [{"kind": "dirt", "amount": 1}]
 	if _terrain_rng and _terrain_rng.randf() < 0.18:
 		drops.append({"kind": "seeds", "amount": 1})
 	return drops
@@ -382,7 +405,13 @@ func _build_drops_for_grass_stripped_to_dirt() -> Array:
 func _drop_kind_for_source(source_id: int) -> String:
 	return _primary_drop_kind_for_source(source_id)
 
-func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, bare_hand_slowdown: float = 5.0) -> Dictionary:
+func try_mine_cell(
+	cell: Vector2i,
+	tool: String,
+	tier_damage_mult: float = 1.0,
+	bare_hand_slowdown: float = 5.0,
+	caller_damage_mult: float = 1.0,
+) -> Dictionary:
 	var source_id := get_cell_source_id(cell)
 	if source_id == -1:
 		return {"ok": false, "reason": "empty"}
@@ -412,6 +441,8 @@ func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, 
 	if tool == "none" or not matched_tool:
 		var slow := maxf(1.0, bare_hand_slowdown)
 		damage_f /= slow
+	var caller_mult := maxf(0.05, caller_damage_mult)
+	damage_f *= caller_mult
 	_tile_damage[key] = float(_tile_damage.get(key, 0.0)) + damage_f
 	var hits := float(_tile_damage[key])
 	var required_hits := float(_required_hits_for_source(source_id))
@@ -430,7 +461,7 @@ func try_mine_cell(cell: Vector2i, tool: String, tier_damage_mult: float = 1.0, 
 	if _is_grass_source_id(source_id):
 		set_cell(cell, -1, Vector2i.ZERO)
 		drops = _build_drops_for_grass_stripped_to_dirt()
-		mine_feedback = "Collected grass block."
+		mine_feedback = "Stripped topsoil — dirt added."
 	else:
 		set_cell(cell, -1, Vector2i.ZERO)
 		drops = _build_drops_for_source(source_id)

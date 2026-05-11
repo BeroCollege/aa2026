@@ -8,6 +8,7 @@
 .idea/
 # Logs / temp
 *.log
+.Rhistory
 # Env / secrets
 .env
 .env.*

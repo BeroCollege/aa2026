@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://dfg40rxcd6nsu"]
+[gd_scene load_steps=6 format=3 uid="uid://dfg40rxcd6nsu"]
 
 [ext_resource type="Script" path="res://scripts/start_screen.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/ui/bob_attack_start_screen.png" id="2_texture"]
@@ -17,6 +17,18 @@ corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dialog_bg"]
+bg_color = Color(0.06, 0.07, 0.14, 0.82)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.98, 0.88, 0.45, 0.35)
 
 [node name="StartScreen" type="Control"]
 layout_mode = 3
@@ -93,22 +105,6 @@ theme_override_styles/focus = SubResource("StyleBoxFlat_btn_focus")
 flat = true
 text = "[Settings]"
 
-[node name="BtnCredits" type="Button" parent="MenuAnchor/Menu"]
-custom_minimum_size = Vector2(0, 38)
-layout_mode = 2
-theme_override_fonts/font = ExtResource("3_font")
-theme_override_font_sizes/font_size = 15
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_hover_color = Color(1, 0.95, 0.65, 1)
-theme_override_colors/font_pressed_color = Color(0.85, 0.85, 0.85, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.82)
-theme_override_styles/normal = SubResource("StyleBoxEmpty_clear")
-theme_override_styles/hover = SubResource("StyleBoxEmpty_clear")
-theme_override_styles/pressed = SubResource("StyleBoxEmpty_clear")
-theme_override_styles/focus = SubResource("StyleBoxFlat_btn_focus")
-flat = true
-text = "[Credits]"
-
 [node name="BtnQuit" type="Button" parent="MenuAnchor/Menu"]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
@@ -134,11 +130,12 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -340.0
-offset_top = -220.0
+offset_top = -290.0
 offset_right = 340.0
-offset_bottom = 220.0
+offset_bottom = 290.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_dialog_bg")
 
 [node name="Margin" type="MarginContainer" parent="Dialog"]
 layout_mode = 1
@@ -162,7 +159,127 @@ theme_override_fonts/font = ExtResource("3_font")
 theme_override_font_sizes/font_size = 18
 text = "Title"
 
-[node name="DialogBody" type="Label" parent="Dialog/Margin/VBox"]
+[node name="SettingsPanel" type="VBoxContainer" parent="Dialog/Margin/VBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="SettingsHint" type="Label" parent="Dialog/Margin/VBox/SettingsPanel"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 9
+theme_override_colors/font_color = Color(0.85, 0.82, 0.78, 1)
+autowrap_mode = 3
+text = "Route AudioStreamPlayers to Music or SFX buses for these sliders."
+
+[node name="VolumeRows" type="VBoxContainer" parent="Dialog/Margin/VBox/SettingsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MasterRow" type="HBoxContainer" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LblMaster" type="Label" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/MasterRow"]
+custom_minimum_size = Vector2(118, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+text = "Master"
+
+[node name="SliderMaster" type="HSlider" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/MasterRow"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="LblMasterPct" type="Label" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/MasterRow"]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+text = "100%"
+horizontal_alignment = 2
+
+[node name="MusicRow" type="HBoxContainer" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LblMusic" type="Label" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/MusicRow"]
+custom_minimum_size = Vector2(118, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+text = "Music"
+
+[node name="SliderMusic" type="HSlider" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/MusicRow"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="LblMusicPct" type="Label" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/MusicRow"]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+text = "100%"
+horizontal_alignment = 2
+
+[node name="SfxRow" type="HBoxContainer" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LblSfx" type="Label" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/SfxRow"]
+custom_minimum_size = Vector2(118, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+text = "SFX"
+
+[node name="SliderSfx" type="HSlider" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/SfxRow"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="LblSfxPct" type="Label" parent="Dialog/Margin/VBox/SettingsPanel/VolumeRows/SfxRow"]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+text = "100%"
+horizontal_alignment = 2
+
+[node name="ChkFullscreen" type="CheckBox" parent="Dialog/Margin/VBox/SettingsPanel"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.95, 0.65, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.85, 0.85, 1)
+flat = true
+text = "Fullscreen"
+
+[node name="ChkVsync" type="CheckBox" parent="Dialog/Margin/VBox/SettingsPanel"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.95, 0.65, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.85, 0.85, 1)
+flat = true
+button_pressed = true
+text = "VSync"
+
+[node name="KeybindsLabel" type="Label" parent="Dialog/Margin/VBox/SettingsPanel"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_fonts/font = ExtResource("3_font")

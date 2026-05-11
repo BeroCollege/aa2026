@@ -87,6 +87,10 @@ func collect_for_player(amount: int = 1) -> void:
 	collect_for_player_resource("wood", amount)
 
 func collect_for_player_resource(resource_kind: String, amount: int = 1) -> void:
+	# Surface grass must never be stored as grass items — only as dirt (see world_tilemap drops).
+	# Legacy id `grass_block` was the old surface-turf stack; map it to dirt on pickup only.
+	if resource_kind == "grass" or resource_kind == "grass_block":
+		resource_kind = "dirt"
 	if not inventory.has(resource_kind):
 		inventory[resource_kind] = 0
 	inventory[resource_kind] += amount
@@ -138,11 +142,6 @@ func get_upgrade_cost_line(tool: String) -> String:
 		return ""
 	var c: Dictionary = TOOL_UPGRADE_COST[tool]
 	return "%d Wood + %d Stone" % [int(c.get("wood", 0)), int(c.get("stone", 0))]
-
-func can_craft_tool() -> bool:
-	if debug_mode_enabled:
-		return true
-	return inventory["wood"] >= int(TOOL_WOOD_ONLY_COST["pickaxe"])
 
 func craft_tool() -> bool:
 	if debug_mode_enabled:

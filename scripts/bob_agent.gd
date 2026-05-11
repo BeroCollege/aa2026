@@ -31,7 +31,22 @@ enum BobMode {
 @export var mine_reach_cells_x: int = 1
 @export var mine_reach_cells_up: int = 2
 @export var mine_reach_cells_down: int = 1
-@export var mine_action_cooldown: float = 0.22
+## Cooldown after Bob’s friendly forage mine attempts (escape digs use `bob_escape_mine_cooldown`).
+@export_range(0.06, 0.55, 0.01) var mine_action_cooldown: float = 0.2
+## Extra damage multiplier applied only on Bob’s `try_mine_cell` calls (player unchanged).
+@export_range(0.35, 4.0, 0.05) var bob_mine_damage_multiplier: float = 1.55
+## When Bob’s tool does not match the tile (e.g. pickaxe on dirt), damage divisor — lower is faster (player uses 5.0).
+@export_range(1.0, 8.0, 0.1) var bob_mine_wrong_tool_slowdown: float = 2.15
+## Passed into tile mining as tier multiplier (clamped 1.0–2.5 inside tilemap).
+@export_range(1.0, 2.5, 0.05) var bob_mine_tier_damage_mult: float = 1.28
+## Cooldown after each escape dig when stuck mining toward the player.
+@export_range(0.06, 0.55, 0.01) var bob_escape_mine_cooldown: float = 0.13
+## Lateral stuck time before escape mining activates.
+@export_range(0.12, 1.1, 0.02) var bob_escape_stuck_threshold: float = 0.4
+## Consecutive escape digs before the brake cooldown applies.
+@export_range(1, 10, 1) var bob_escape_mine_chain_limit: int = 3
+## Cooldown applied after `bob_escape_mine_chain_limit` escape digs in a row.
+@export_range(0.2, 2.0, 0.05) var bob_escape_mine_chain_brake_cooldown: float = 0.52
 @export var forage_mine_interval: float = 1.05
 @export var place_action_cooldown: float = 1.45
 ## Minimum vertical delta (player above Bob, in pixels) required before Bob will
@@ -47,8 +62,8 @@ enum BobMode {
 @export var escape_mine_reach_cells_up: int = 3
 @export var friendly_mode_min_seconds: float = 2.8
 @export var friendly_mode_max_seconds: float = 5.8
-@export var attack_mode_min_seconds: float = 6.0
-@export var attack_mode_max_seconds: float = 10.5
+@export var attack_mode_min_seconds: float = 7.2
+@export var attack_mode_max_seconds: float = 12.5
 @export var attack_mode_base_bias: float = 0.72
 @export var attack_bias_early_grace_first_window: float = 16.0
 @export var attack_bias_early_grace_first_penalty: float = 0.12
@@ -66,25 +81,48 @@ enum BobMode {
 @export var attack_bias_min: float = 0.28
 @export var attack_bias_max: float = 0.94
 @export var attack_chase_lead_distance: float = 126.0
-@export var attack_pace_boost: float = 0.22
-@export var attack_pace_max: float = 1.24
-@export var attack_annoy_distance: float = 66.0
-@export var attack_annoy_damage: float = 3.3
-@export var friendly_annoy_damage: float = 2.0
-@export var attack_annoy_cooldown: float = 0.22
-@export var friendly_annoy_cooldown: float = 0.36
-@export var attack_shove_range: float = 82.0
-@export var attack_shove_min_distance: float = 22.0
-@export var attack_shove_strength: float = 380.0
-@export var attack_shove_harass_strength_multiplier: float = 1.25
-@export var attack_shove_cooldown: float = 2.55
-@export var attack_shove_harass_cooldown: float = 1.35
-@export var attack_shove_cooldown_floor: float = 0.85
+## Extra horizontal speed fraction while chasing in ATTACK (applied on top of the 0.82–1.0 energy gate).
+@export_range(0.0, 0.55, 0.01) var attack_pace_boost: float = 0.31
+@export_range(1.0, 1.45, 0.01) var attack_pace_max: float = 1.30
+@export var attack_annoy_distance: float = 102.0
+@export var attack_annoy_damage: float = 7.8
+@export var friendly_annoy_damage: float = 2.5
+@export var attack_annoy_cooldown: float = 0.11
+@export var friendly_annoy_cooldown: float = 0.28
+@export var attack_shove_range: float = 122.0
+@export var attack_shove_min_distance: float = 16.0
+@export var attack_shove_strength: float = 505.0
+@export var attack_shove_harass_strength_multiplier: float = 1.32
+@export var attack_shove_cooldown: float = 1.38
+@export var attack_shove_harass_cooldown: float = 0.68
+@export var attack_shove_cooldown_floor: float = 0.44
+## After sword HP damage, B.O.B. stays aggressive with faster shove/annoy bite pacing until this timer expires or the player backs off far enough.
+@export_range(0.5, 18.0, 0.1) var hurt_enrage_duration_seconds: float = 8.5
+## Extra attack-mode roll bias while enraged (`_select_mode`).
+@export_range(0.0, 0.55, 0.01) var hurt_enrage_attack_bias_add: float = 0.42
+## While enraged, do not apply `attack_bias_sword_penalty` when the player wields a sword at close range.
+@export var hurt_enrage_ignore_sword_distance_penalty: bool = true
+## After a damaging sword hit, keep ATTACK mode at least this long before a roll can switch out (only if Calm Totem is not active).
+@export_range(0.0, 12.0, 0.1) var hurt_enrage_mode_timer_floor_seconds: float = 6.0
+@export_range(1.0, 2.5, 0.05) var hurt_enrage_annoy_damage_multiplier: float = 1.72
+@export_range(0.2, 1.0, 0.05) var hurt_enrage_annoy_cooldown_scale: float = 0.42
+@export_range(1.0, 2.5, 0.05) var hurt_enrage_bite_damage_multiplier: float = 1.72
+@export_range(0.2, 1.0, 0.05) var hurt_enrage_shove_cooldown_scale: float = 0.48
+@export_range(0.0, 0.5, 0.01) var hurt_enrage_pace_boost_add: float = 0.30
+## Raises bite hunger ceiling while enraged so bites proc sooner under pressure.
+@export_range(0.0, 35.0, 0.5) var hurt_enrage_bite_hunger_max_bonus: float = 18.0
+## While enraged, sustain timer while the player stays in melee with the sword drawn.
+@export_range(40.0, 200.0, 2.0) var hurt_enrage_melee_pressure_range: float = 120.0
+@export_range(0.0, 2.5, 0.05) var hurt_enrage_melee_pressure_recharge_per_second: float = 0.42
+## Ends enrage when the player backs beyond this distance (cancels sustained melee pressure).
+@export_range(80.0, 420.0, 4.0) var hurt_enrage_player_back_off_clear_range: float = 190.0
 @export var hurt_knockback_decay: float = 940.0
 @export var hurt_knockback_max_speed: float = 660.0
-@export var bite_contact_range: float = 60.0
-@export var bite_attack_hunger_max: float = 52.0
-@export var bite_friendly_hunger_max: float = 35.0
+@export var bite_contact_range: float = 86.0
+@export var bite_attack_hunger_max: float = 64.0
+@export var bite_friendly_hunger_max: float = 40.0
+## Continuous player damage per second while Bob is in bite range and hunger allows (`_try_bite_player`).
+@export_range(2.0, 22.0, 0.1) var bite_damage_per_second: float = 12.2
 @export var steering_direction_deadzone: float = 10.0
 @export var steering_flip_hold_time: float = 0.11
 @export var steering_accel: float = 2125.0
@@ -101,10 +139,24 @@ enum BobMode {
 @export var deny_food_destroy_radius: float = 160.0
 @export var deny_food_destroy_chance: float = 0.7
 @export var deny_food_destroy_cooldown: float = 1.1
-## Multiplier on all incoming damage (player melee, etc.).
-@export var damage_received_multiplier: float = 0.5
+## Multiplier on all incoming damage (player melee, etc.). Also scales `max_health` in `_sync_max_health_from_sword_balance`, so changing this alone does **not** change committed swing count vs a matching sword hit amount.
+@export_range(0.2, 1.2, 0.01) var damage_received_multiplier: float = 0.5
+## Sword-hit budget at tier-matched damage: `max_health` / (sword_damage × this multiplier) ≈ this value when `receive_damage` uses the same sword damage as the sync. Raise to force spacing, terrain, and Bob pressure instead of straight-line spam.
+@export_range(35.0, 220.0, 1.0) var target_sword_hits_to_kill: float = 120.0
+## Extra max-HP factor per stone-tipped (or higher) sword tier from GameManager — keeps upgraded blades from collapsing the fight too fast (`get_tool_tier("sword")`).
+@export_range(0.0, 0.35, 0.01) var bob_hp_bonus_per_sword_tier: float = 0.14
+## Extra annoy chip + bite DPS when the player is close with sword and swinging recently (`Player.is_sword_melee_commit_recent`). Does not change sword HP math or LOS rules.
+@export_range(0.0, 1.25, 0.02) var face_tank_player_damage_bonus_mult: float = 0.36
+@export_range(56.0, 150.0, 2.0) var face_tank_player_max_distance: float = 100.0
+@export_range(0.08, 0.42, 0.01) var face_tank_swing_recency_seconds: float = 0.24
+## Only this player melee weapon reduces B.O.B. HP (must match Player.BOB_HP_LOSS_WEAPON_ID).
+const PLAYER_HP_DAMAGE_WEAPON_ID := "sword"
+## After HP hits zero, B.O.B. respawns off-screen delay (death only; initial spawn unchanged).
+@export var death_respawn_delay_seconds: float = 5.0
+## Euclidean distance from player in tile units (matches WorldTiles tile size).
+@export var respawn_offset_tiles: float = 10.0
 
-## One HUD heart segment equals one hit point (see Main OverheadStatus heart count).
+## Synced from sword damage × target_sword_hits_to_kill in _ready (inspector value is overwritten).
 @export var max_health: float = 10.0
 @export var health: float = 10.0
 @export var hunger: float = 80.0
@@ -138,19 +190,25 @@ var _calm_aura_count: int = 0
 var _berry_gather_cd: float = 0.0
 var _deny_food_cd: float = 0.0
 var _hurt_knockback_velocity: float = 0.0
+var _hurt_enrage_timer: float = 0.0
 var _smoothed_move_x: float = 0.0
 var _horizontal_intent_sign: float = 0.0
 var _intent_flip_hold_timer: float = 0.0
 var _is_dead: bool = false
+var _alive_collision_layer: int = 1
+var _alive_collision_mask: int = 1
 
 func _ready() -> void:
 	add_to_group("bob_agent")
 	z_index = actor_world_z_index
+	_alive_collision_layer = collision_layer
+	_alive_collision_mask = collision_mask
 	_rng.randomize()
 	_player = get_tree().get_first_node_in_group("player") as Node2D
 	_manager = get_tree().get_first_node_in_group("game_manager")
 	_world_tiles = get_tree().current_scene.get_node("WorldTiles") as TileMapLayer
-	health = clampf(health, 0.0, max_health)
+	_sync_max_health_from_sword_balance()
+	health = max_health
 	_pick_new_forage_target()
 	_roll_mode_timer()
 
@@ -167,6 +225,8 @@ func _process(delta: float) -> void:
 	_place_cooldown_timer = maxf(0.0, _place_cooldown_timer - delta)
 	_forage_mine_timer = maxf(0.0, _forage_mine_timer - delta)
 	_sword_scare_cd = maxf(0.0, _sword_scare_cd - delta)
+	_hurt_enrage_timer = maxf(0.0, _hurt_enrage_timer - delta)
+	_update_enrage_melee_pressure(delta)
 	_update_needs(delta)
 	_select_mode(delta)
 
@@ -392,8 +452,12 @@ func _select_mode(delta: float) -> void:
 		bias_to_attack += attack_bias_low_trust_bonus
 	if energy < attack_bias_low_energy_threshold:
 		bias_to_attack -= attack_bias_low_energy_penalty
+	var enraged := _hurt_enrage_timer > 0.0
 	if player_wields_sword and player_distance < attack_bias_sword_distance:
-		bias_to_attack -= attack_bias_sword_penalty
+		if not (enraged and hurt_enrage_ignore_sword_distance_penalty):
+			bias_to_attack -= attack_bias_sword_penalty
+	if enraged:
+		bias_to_attack += hurt_enrage_attack_bias_add
 	bias_to_attack = clampf(bias_to_attack + _rng.randf_range(-attack_bias_randomness, attack_bias_randomness), attack_bias_min, attack_bias_max)
 
 	_mode = BobMode.ATTACK if _rng.randf() < bias_to_attack else BobMode.FRIENDLY
@@ -402,6 +466,7 @@ func _select_mode(delta: float) -> void:
 func set_calm_aura_active(active: bool) -> void:
 	if active:
 		_calm_aura_count += 1
+		_hurt_enrage_timer = 0.0
 		_mode = BobMode.FRIENDLY
 		_roll_mode_timer()
 	else:
@@ -428,7 +493,10 @@ func _move_toward_player(stop_at_distance: bool) -> Vector2:
 		return Vector2.ZERO
 	var pace := 0.82 if energy < 28.0 else 1.0
 	if not stop_at_distance and energy > 18.0:
-		pace = minf(attack_pace_max, pace + attack_pace_boost)
+		var pace_extra := attack_pace_boost
+		if _hurt_enrage_timer > 0.0:
+			pace_extra += hurt_enrage_pace_boost_add
+		pace = minf(attack_pace_max, pace + pace_extra)
 	return Vector2(signf(to_target.x) * move_speed * pace, 0.0)
 
 func _move_toward_forage() -> Vector2:
@@ -446,6 +514,18 @@ func _move_toward_forage() -> Vector2:
 		curiosity = maxf(0.0, curiosity - 35.0)
 		return Vector2.ZERO
 	return Vector2(signf(to_target.x) * move_speed, 0.0)
+
+func _bob_try_mine_cell(cell: Vector2i, tool: String) -> Dictionary:
+	if not _world_tiles:
+		return {"ok": false, "reason": "no_tilemap"}
+	return _world_tiles.try_mine_cell(
+		cell,
+		tool,
+		bob_mine_tier_damage_mult,
+		bob_mine_wrong_tool_slowdown,
+		bob_mine_damage_multiplier,
+	)
+
 
 func _try_forage_mine() -> void:
 	if _mine_cooldown_timer > 0.0 or _forage_mine_timer > 0.0 or not _world_tiles:
@@ -471,7 +551,7 @@ func _try_forage_mine() -> void:
 		_forage_mine_timer = forage_mine_interval
 		return
 	var tool := "axe" if best_target.y <= feet_cell.y else "pickaxe"
-	var result: Dictionary = _world_tiles.try_mine_cell(best_target, tool)
+	var result: Dictionary = _bob_try_mine_cell(best_target, tool)
 	_mine_cooldown_timer = mine_action_cooldown
 	_forage_mine_timer = forage_mine_interval
 	if not bool(result.get("ok", false)):
@@ -610,7 +690,7 @@ func _try_mine_escape() -> void:
 	if _mode == BobMode.FRIENDLY:
 		return
 	# Mine only when actually stuck for a short period.
-	if _stuck_move_timer < 0.55:
+	if _stuck_move_timer < bob_escape_stuck_threshold:
 		return
 	var feet_cell: Vector2i = _world_tiles.world_to_cell(global_position + Vector2(0, surface_foot_offset))
 	var player_above: bool = _player.global_position.y < global_position.y - 40.0
@@ -625,10 +705,10 @@ func _try_mine_escape() -> void:
 	var target := _choose_escape_mine_target(feet_cell)
 	if target.x < -100:
 		return
-	var result: Dictionary = _world_tiles.try_mine_cell(target, "pickaxe")
+	var result: Dictionary = _bob_try_mine_cell(target, "pickaxe")
 	if not bool(result.get("ok", false)):
 		return
-	_mine_cooldown_timer = mine_action_cooldown * 1.2
+	_mine_cooldown_timer = bob_escape_mine_cooldown
 	_stuck_move_timer = 0.0
 	_escape_mine_chain += 1
 	_action_text = "mining smart path toward player"
@@ -637,9 +717,9 @@ func _try_mine_escape() -> void:
 		if _manager:
 			_manager.collect_for_bob(1)
 	# Safety brake: prevent runaway excavation loops.
-	if _escape_mine_chain >= 3:
+	if _escape_mine_chain >= bob_escape_mine_chain_limit:
 		_escape_mine_chain = 0
-		_mine_cooldown_timer = 0.9
+		_mine_cooldown_timer = bob_escape_mine_chain_brake_cooldown
 
 func _can_mine_target(origin: Vector2i, target: Vector2i) -> bool:
 	var dx := absi(target.x - origin.x)
@@ -1049,13 +1129,19 @@ func receive_food(amount: int) -> void:
 
 func _try_bite_player(delta: float) -> void:
 	var bite_hunger_max := bite_attack_hunger_max if _mode == BobMode.ATTACK else bite_friendly_hunger_max
+	if _hurt_enrage_timer > 0.0:
+		bite_hunger_max += hurt_enrage_bite_hunger_max_bonus
 	if hunger > bite_hunger_max:
 		return
 	if not _player or not _manager:
 		return
 	if global_position.distance_to(_player.global_position) > bite_contact_range:
 		return
-	_manager.damage_player(5.4 * delta)
+	var bite_tick := bite_damage_per_second
+	if _hurt_enrage_timer > 0.0:
+		bite_tick *= hurt_enrage_bite_damage_multiplier
+	bite_tick *= _face_tank_pressure_damage_mult()
+	_manager.damage_player(bite_tick * delta)
 	hunger = minf(100.0, hunger + 9.0 * delta)
 	trust_to_player = maxf(0.0, trust_to_player - 4.2 * delta)
 	_action_text = "biting player (starving!)"
@@ -1072,9 +1158,14 @@ func _try_annoy_player(delta: float) -> void:
 		return
 	# Discrete chip damage each proc (delta was too small to feel).
 	var chip := attack_annoy_damage if _mode == BobMode.ATTACK else friendly_annoy_damage
+	var tick_cd := attack_annoy_cooldown if _mode == BobMode.ATTACK else friendly_annoy_cooldown
+	if _hurt_enrage_timer > 0.0 and _mode == BobMode.ATTACK:
+		chip *= hurt_enrage_annoy_damage_multiplier
+		tick_cd *= hurt_enrage_annoy_cooldown_scale
+	chip *= _face_tank_pressure_damage_mult()
 	_manager.damage_player(chip)
 	trust_to_player = maxf(0.0, trust_to_player - 2.4)
-	_last_annoy_tick = attack_annoy_cooldown if _mode == BobMode.ATTACK else friendly_annoy_cooldown
+	_last_annoy_tick = tick_cd
 	if hunger < 68.0:
 		_action_text = "harassing player at close range"
 
@@ -1096,6 +1187,8 @@ func _try_shove_player(delta: float) -> void:
 	if not in_kill_window:
 		shove_strength *= attack_shove_harass_strength_multiplier
 		shove_cooldown = attack_shove_harass_cooldown
+	if _hurt_enrage_timer > 0.0:
+		shove_cooldown *= hurt_enrage_shove_cooldown_scale
 	var dir := signf(_player.global_position.x - global_position.x)
 	if dir == 0.0:
 		dir = 1.0 if _rng.randf() < 0.5 else -1.0
@@ -1105,8 +1198,54 @@ func _try_shove_player(delta: float) -> void:
 	curiosity = minf(100.0, curiosity + 3.5)
 	_action_text = "shoving you aggressively" if not in_kill_window else "shoving you out of the way"
 
-func receive_damage(amount: float, hit_direction_x: float = 0.0, knockback_strength: float = 230.0) -> void:
+func _should_apply_player_melee_hp_loss(melee_weapon: String) -> bool:
+	return melee_weapon == PLAYER_HP_DAMAGE_WEAPON_ID
+
+
+func _sync_max_health_from_sword_balance() -> void:
+	var sword_raw := 16.0
+	if _player and _player.has_method("get_sword_damage_for_bob_hp_balance"):
+		sword_raw = float(_player.get_sword_damage_for_bob_hp_balance())
+	var hp_loss_per_sword_hit := sword_raw * damage_received_multiplier
+	var tier_hp_mult := 1.0
+	if _manager and _manager.has_method("get_tool_tier"):
+		var st := maxi(0, int(_manager.get_tool_tier("sword")))
+		tier_hp_mult = 1.0 + bob_hp_bonus_per_sword_tier * float(st)
+	max_health = maxf(1.0, hp_loss_per_sword_hit * maxf(1.0, target_sword_hits_to_kill) * tier_hp_mult)
+
+
+func _face_tank_pressure_damage_mult() -> float:
+	if _mode != BobMode.ATTACK:
+		return 1.0
+	if not _player:
+		return 1.0
+	if global_position.distance_to(_player.global_position) > face_tank_player_max_distance:
+		return 1.0
+	if not _player.has_method("is_sword_melee_commit_recent"):
+		return 1.0
+	if not _player.is_sword_melee_commit_recent(face_tank_swing_recency_seconds):
+		return 1.0
+	return 1.0 + face_tank_player_damage_bonus_mult
+
+
+func _update_enrage_melee_pressure(delta: float) -> void:
+	if _hurt_enrage_timer <= 0.0 or not _player:
+		return
+	var dist := global_position.distance_to(_player.global_position)
+	if dist > hurt_enrage_player_back_off_clear_range:
+		_hurt_enrage_timer = 0.0
+		return
+	var sword_up := _player.has_method("get_selected_tool") and str(_player.get_selected_tool()) == "sword"
+	if not sword_up or dist > hurt_enrage_melee_pressure_range:
+		return
+	var cap := maxf(hurt_enrage_duration_seconds * 1.35, hurt_enrage_duration_seconds + 1.0)
+	_hurt_enrage_timer = minf(cap, _hurt_enrage_timer + hurt_enrage_melee_pressure_recharge_per_second * delta)
+
+
+func receive_damage(amount: float, hit_direction_x: float = 0.0, knockback_strength: float = 230.0, melee_weapon: String = "") -> void:
 	if _is_dead or amount <= 0.0:
+		return
+	if not _should_apply_player_melee_hp_loss(melee_weapon):
 		return
 	var dmg := amount * damage_received_multiplier
 	health = clampf(health - dmg, 0.0, max_health)
@@ -1114,6 +1253,10 @@ func receive_damage(amount: float, hit_direction_x: float = 0.0, knockback_stren
 	hunger = maxf(0.0, hunger - dmg * 0.25)
 	trust_to_player = maxf(0.0, trust_to_player - dmg * 0.9)
 	affection = maxf(0.0, affection - dmg * 0.6)
+	if _calm_aura_count <= 0:
+		_hurt_enrage_timer = hurt_enrage_duration_seconds
+		_mode = BobMode.ATTACK
+		_mode_timer = maxf(_mode_timer, hurt_enrage_mode_timer_floor_seconds)
 	_action_text = "angry after being hit!"
 	var kick := hit_direction_x
 	if kick == 0.0 and _player:
@@ -1142,6 +1285,56 @@ func _die() -> void:
 	set_process(false)
 	set_physics_process(false)
 	visible = false
+	var wait := maxf(0.05, death_respawn_delay_seconds)
+	get_tree().create_timer(wait).timeout.connect(_respawn_after_death, CONNECT_ONE_SHOT)
+
+
+func _tile_size_px() -> float:
+	if _world_tiles and _world_tiles.tile_set:
+		return float(_world_tiles.tile_set.tile_size.x)
+	return 64.0
+
+
+func _respawn_after_death() -> void:
+	if not is_inside_tree() or not _is_dead:
+		return
+	if not _player or not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player") as Node2D
+	if not _world_tiles or not is_instance_valid(_world_tiles):
+		_world_tiles = get_tree().current_scene.get_node_or_null("WorldTiles") as TileMapLayer
+	var tile_px := _tile_size_px()
+	var dist_px := maxf(1.0, respawn_offset_tiles) * tile_px
+	# Horizontal separation only (surface spawn uses column X); omit pure vertical so we never stack on the player.
+	var dirs: Array[Vector2] = [
+		Vector2.RIGHT, Vector2.LEFT,
+		Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1),
+	]
+	var dir: Vector2 = dirs[_rng.randi() % dirs.size()].normalized()
+	var offset := dir * dist_px
+	var target_x := global_position.x
+	if _player:
+		target_x = _player.global_position.x + offset.x
+	if _world_tiles and _world_tiles.has_method("ensure_streaming_around_world"):
+		_world_tiles.ensure_streaming_around_world(target_x - tile_px * 4.0, target_x + tile_px * 4.0)
+	var surface := Vector2(target_x, global_position.y)
+	if _world_tiles and _world_tiles.has_method("get_surface_world_position_at_x"):
+		surface = _world_tiles.get_surface_world_position_at_x(target_x)
+	global_position = surface + Vector2(0.0, -surface_foot_offset)
+	_hurt_knockback_velocity = 0.0
+	velocity = Vector2.ZERO
+	_sync_max_health_from_sword_balance()
+	health = max_health
+	_hurt_enrage_timer = 0.0
+	_is_dead = false
+	add_to_group("bob_agent")
+	collision_layer = _alive_collision_layer
+	collision_mask = _alive_collision_mask
+	visible = true
+	_mode = BobMode.ATTACK
+	_roll_mode_timer()
+	_action_text = "angry after respawn!"
+	set_process(true)
+	set_physics_process(true)
 
 
 func _apply_hurt_knockback(direction_x: float, strength: float) -> void:

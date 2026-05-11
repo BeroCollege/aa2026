@@ -337,6 +337,7 @@ offset_left = 12.0
 offset_top = 42.0
 offset_right = 44.0
 offset_bottom = 74.0
+mouse_filter = 2
 texture = ExtResource("14_picki")
 expand_mode = 1
 stretch_mode = 5
@@ -346,13 +347,14 @@ offset_left = 52.0
 offset_top = 44.0
 offset_right = 426.0
 offset_bottom = 70.0
-text = "Pickaxe  (3 Wood + 2 Stone)"
+text = "Wooden Pickaxe (4 Wood)"
 
 [node name="CraftAxeIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
 offset_left = 12.0
 offset_top = 78.0
 offset_right = 44.0
 offset_bottom = 110.0
+mouse_filter = 2
 texture = ExtResource("15_axei")
 expand_mode = 1
 stretch_mode = 5
@@ -362,13 +364,14 @@ offset_left = 52.0
 offset_top = 80.0
 offset_right = 426.0
 offset_bottom = 106.0
-text = "Axe      (4 Wood + 1 Stone)"
+text = "Wooden Axe (5 Wood)"
 
 [node name="CraftSwordIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
 offset_left = 12.0
 offset_top = 114.0
 offset_right = 44.0
 offset_bottom = 146.0
+mouse_filter = 2
 texture = ExtResource("16_swordi")
 expand_mode = 1
 stretch_mode = 5
@@ -378,13 +381,14 @@ offset_left = 52.0
 offset_top = 116.0
 offset_right = 426.0
 offset_bottom = 142.0
-text = "Sword    (2 Wood + 3 Stone)"
+text = "Wooden Sword (4 Wood)"
 
 [node name="CraftHoeIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
 offset_left = 12.0
 offset_top = 150.0
 offset_right = 44.0
 offset_bottom = 182.0
+mouse_filter = 2
 texture = ExtResource("15_axei")
 expand_mode = 1
 stretch_mode = 5
@@ -394,13 +398,14 @@ offset_left = 52.0
 offset_top = 152.0
 offset_right = 426.0
 offset_bottom = 178.0
-text = "Hoe      (3 Wood + 1 Stone)"
+text = "Wooden Hoe (4 Wood)"
 
 [node name="CraftSnackIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
 offset_left = 12.0
 offset_top = 186.0
 offset_right = 44.0
 offset_bottom = 218.0
+mouse_filter = 2
 texture = ExtResource("13_foodi")
 expand_mode = 1
 stretch_mode = 5
@@ -410,7 +415,17 @@ offset_left = 52.0
 offset_top = 188.0
 offset_right = 426.0
 offset_bottom = 214.0
-text = "Bob Snack  (2 Food + 1 Wood)"
+text = "Bob Snack (2 Food + 1 Wood)"
+
+[node name="CraftMealIcon" type="TextureRect" parent="CanvasLayer/CraftMenu"]
+offset_left = 12.0
+offset_top = 222.0
+offset_right = 44.0
+offset_bottom = 254.0
+mouse_filter = 2
+texture = ExtResource("13_foodi")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="CraftMealButton" type="Button" parent="CanvasLayer/CraftMenu"]
 offset_left = 52.0
