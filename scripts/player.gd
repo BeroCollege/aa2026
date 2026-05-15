@@ -660,6 +660,8 @@ func _try_mine_tile_under_cursor() -> bool:
 	if _manager and _manager.has_method("get_tool_mining_multiplier"):
 		tier_mult = float(_manager.get_tool_mining_multiplier(_selected_tool))
 	var result: Dictionary = _world_tiles.try_mine_cell(target_cell, _selected_tool, tier_mult, bare_hand_mining_slowdown)
+	if bool(result.get("ok", false)):
+		GameSfx.play_at(self, GameSfx.MINE_HIT, _world_tiles.get_cell_world_center(target_cell), -4.0)
 	if not bool(result.get("ok", false)):
 		_clear_tile_mining_darken_visual()
 		var reason := str(result.get("reason", ""))
@@ -756,6 +758,7 @@ func _try_place_block_under_cursor() -> bool:
 	if _manager.has_method("notify_inventory_changed"):
 		_manager.call("notify_inventory_changed")
 	_last_hint = "Placed %s." % _place_kind
+	GameSfx.play_at(self, GameSfx.PLACE_BLOCK, _world_tiles.get_cell_world_center(target_cell), -6.0)
 	return true
 
 func _select_available_place_kind_if_needed() -> void:
