@@ -10,3 +10,7 @@ This project currently uses CC0/public-domain assets.
 ## In-project generated primitives
 - Some UI/tool elements are simple shapes authored directly in Godot scenes/scripts.
 - License: Original work by project author/assistant for this repository.
+
+## Procedural gameplay SFX (`assets/audio/sfx/`)
+- Short WAV files generated locally (tones/noise) for mine, UI, craft, and B.O.B. feedback.
+- License: Treated as original project audio for this submission (documented in README References).
