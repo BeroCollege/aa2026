@@ -14,3 +14,9 @@
 .env.*
 # Local Godot study notes (machine-specific)
 GODOT_NOTES.local.md
+# Local coursework reference (not required to build or run)
+study/
+csresources-main/
+# Desktop export output (presets only in repo)
+exports/
+build/
