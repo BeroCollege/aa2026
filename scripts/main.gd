@@ -698,8 +698,10 @@ func _event_as_text(ev: InputEvent) -> String:
 
 
 func _toggle_craft_menu() -> void:
-	_craft_menu.visible = not _craft_menu.visible
-	if _craft_menu.visible:
+	var opening := not _craft_menu.visible
+	_craft_menu.visible = opening
+	if opening:
+		GameSfx.play_ui(self, GameSfx.CRAFT_OPEN, -5.0)
 		_refresh_craft_menu()
 
 func _close_craft_menu() -> void:
