@@ -1,134 +1,151 @@
-# BOB Survival Prototype
+# BOB Survival (BOB ATTACK)
 
-A **2D survival sandbox** in Godot where you gather resources, craft tools and defenses, manage hunger, and live alongside **B.O.B.**—an autonomous companion who helps himself to the world (and sometimes to you).
+**Name:** [Your name]
+
+**Student Number:** ::STUDENT_NUMBER::
+
+**Class Group:** [Your class group]
 
 ---
+
+# Video
+
+Demo video: to be uploaded on Moodle (YouTube link omitted for this submission pass).
+
+---
+
+# Screenshots
+
+Add PNG files under `docs/screenshots/` (see `docs/screenshots/README.md` for suggested shots).
+
+![Gameplay placeholder](docs/screenshots/gameplay.png)
+
+![Start screen placeholder](docs/screenshots/start_screen.png)
+
+---
+
+# Description of the project
+
+**BOB Survival** is a 2D survival sandbox built in **Godot 4.6**. You gather resources, craft tools, place blocks, manage hunger, and survive alongside **B.O.B.**—an autonomous companion implemented as a finite-state agent with needs, moods, and world interaction. The start screen (`scenes/StartScreen.tscn`) uses the **BOB ATTACK** banner art; the project name in `project.godot` is **BOB Survival Prototype**.
+
+The core loop is gather → craft → build → feed or calm B.O.B. → survive pressure when he enters **ATTACK** mode. Terrain streams infinitely via `WorldTilemap`; inventory and crafting live in `GameManager`.
+
+---
+
+# Instructions for use
 
 ## Requirements
 
-- **Godot Engine 4.6** (project `config/features` targets 4.6).
-- A **desktop** OS supported by Godot 4.x (e.g. macOS, Windows, Linux). This build is a keyboard/mouse prototype (no gamepad mapping in `project.godot`).
+- **Godot Engine 4.6** (matches `config/features` in `project.godot`).
+- Desktop OS (macOS, Windows, or Linux) with keyboard and mouse.
+
+## Run from source
+
+1. Install [Godot 4.6](https://godotengine.org/download).
+2. Open this folder in the Godot Project Manager (`project.godot`).
+3. Press **F5** (Run Project). Main scene: `res://scenes/StartScreen.tscn`.
+4. Choose **Start** to load `res://scenes/Main.tscn`.
+
+Volume, fullscreen, and vsync persist via `RunRecords` / `scripts/start_screen.gd`. Master, **Music**, and **SFX** buses are defined in `default_bus_layout.tres`; gameplay SFX route to the **SFX** bus so the start-screen sliders still work.
+
+## Export (desktop)
+
+1. In Godot: **Project → Export…**
+2. Select preset **macOS Desktop** or **Windows Desktop** (`export_presets.cfg`).
+3. If export templates are missing, use **Editor → Manage Export Templates** and install Godot 4.6 templates.
+4. Set an output path under `exports/` (ignored by git) and click **Export Project**.
+5. Run the exported `.app` (macOS) or `.exe` (Windows).
+
+**macOS note:** You may need to allow the app in **System Settings → Privacy & Security** on first launch if it is unsigned.
 
 ---
 
-## How to run
+# How it works
 
-1. Install [Godot 4.6](https://godotengine.org/download) (version must match the project feature pin).
-2. **Import** this folder as a project, or open `project.godot` from the Project Manager.
-3. Press **F5** (or **Run Project**). The configured main scene is:
+## Player and world
 
-   `res://scenes/StartScreen.tscn`
+The player (`scripts/player.gd`) moves on a tilemap with gravity, mines blocks under the cursor (tool-dependent), places dirt/stone/reinforced blocks, farms with the hoe, and fights with melee tools. `WorldTilemap` handles streaming, mining damage, drops, and placement rules. `GameManager` tracks inventory, hunger, crafting costs, and run records.
 
-4. From the start screen, choose **Start** to load the gameplay scene `res://scenes/Main.tscn`.
+## B.O.B. (autonomous agent)
 
-Settings (volume, fullscreen, vsync) persist via the autoload `RunRecords` config path used by `scripts/start_screen.gd`.
+B.O.B. (`scripts/bob_agent.gd`) is a **CharacterBody2D** with an internal **`BobMode`** enum (**FRIENDLY** / **ATTACK**). Each frame he updates **hunger**, **safety**, **curiosity**, **energy**, **trust**, and **affection**, then picks movement and actions from the active mode.
+
+- **FRIENDLY:** forages and mines exposed tiles, seeks berries, wanders near the player when close.
+- **ATTACK:** chases the player, bites when hungry enough, annoys/shoves, may sabotage inventory, break chests, place climb steps, or bury berry bushes near a low-health player.
+
+**Mode selection** runs on a timer: when it expires, a **bias_to_attack** score is built from tunable exports (hunger, trust, energy, sword proximity, hurt enrage, early-game grace, randomness) and compared to `randf()`. **Calm Totems** force **FRIENDLY** while the player stands in the aura. **Sword hits** apply HP damage, start **hurt enrage**, and lock **ATTACK** for a minimum duration. After death, B.O.B. respawns off-screen still angry.
+
+This is deliberate **autonomous-agent** design: behavior is explainable from exported numbers and state, not scripted cutscenes.
+
+## Audio
+
+Short SFX under `assets/audio/sfx/` play through `GameSfx` (`scripts/game_sfx.gd`) on the **SFX** bus: mining, placement, craft menu open, UI clicks, B.O.B. bite, and switching to attack mode. Procedural WAV files were generated for this repo (see References).
 
 ---
 
-## How to play
+# Controls summary
 
-### Movement and camera
-
-| Action | Default binding |
-|--------|-----------------|
-| Move left / right | **A** / **D** |
-| Move down | **S** |
-| Move up (climb intent) | **W** |
-| Jump | **Space**; grounded jump also accepts **W** (`move_up`) |
-
-**Note:** **S** is bound to both **`move_down`** and **`mine_block`** in `project.godot`. For predictable mining, prefer **left mouse button** for mine/break, or rebind in the Godot **Input Map**.
-
-### Interaction, combat, and building
-
-| Action | Default binding |
-|--------|-----------------|
-| Interact / gather (nearest valid target) | **E** |
-| Mine / break (cursor tile or resource; tool-dependent) | **S**, **left mouse** |
-| Place block (material cycles separately) | **V** (hold repeats placement while valid) |
-| Cycle place material (`dirt` → `stone` → `reinforced`) | **X** |
-| Place **Calm Totem** (consumes crafted totems) | **T** |
+| Action | Key |
+|--------|-----|
+| Move | **A** / **D**, **S** down, **W** up / climb intent |
+| Jump | **Space** (also **W** when grounded) |
+| Interact / gather | **E** |
+| Mine / break | **Left mouse**, **S** (also bound to move down—prefer mouse for mining) |
+| Place block | **V** (hold to repeat) |
+| Cycle place material | **X** |
+| Place Calm Totem | **T** |
 | Feed B.O.B. | **Q** |
+| Tools | **1** sword, **2** pickaxe, **3** axe, **4** shovel, **5** hoe |
+| Craft menu | **C** or **F** |
+| Craft shovel (menu open) | **6** |
+| Pause | **Escape** (closes craft first if open) |
+| Debug overlay | **I** |
 
-Point mining and placement use the **mouse cursor** within reach (see exports on `scripts/player.gd` such as `tile_mine_reach`).
-
-### Tools and crafting UI
-
-| Action | Default binding |
-|--------|-----------------|
-| Select tool | **1** sword, **2** pickaxe, **3** axe, **4** shovel, **5** hoe (only if you own that tool) |
-| Open / close craft menu | **C** or **F** (`craft_tool`) |
-| Craft shovel from craft menu | **6** (only while craft menu is open) |
-| Toggle debug overlay | **I** |
-
-**Pause:** **Escape** (`ui_cancel`) opens the pause menu when the craft menu is closed; with craft open, **Escape** or **C**/**F** closes craft first (`scripts/main.gd`).
-
-Melee vs actors: **non-hoe** tools can hit **monsters** in range; **B.O.B.** only loses **HP** from the **sword** (other tools “bonk” without HP damage). Sword hits require line of sight past solid tiles.
-
-### Farming (hoe)
-
-With the **hoe** selected: **E** or cursor mining can till, plant **seeds**, and **harvest** crops for food and seeds (see `scripts/player.gd`).
+Full detail matches `project.godot` input map and `scripts/start_screen.gd` settings labels.
 
 ---
 
-## Core loop
+# List of classes / assets in the project
 
-- **Gather:** Chop trees, mine tiles, loot chests, harvest crops—resources go into `GameManager` inventory (`wood`, `stone`, `food`, `seeds`, `dirt`, etc.).
-- **Craft:** Use the craft menu to spend wood/stone on **tools**, **Calm Totems** (5 wood + 5 stone each), **reinforced** placeables (2 wood + 4 stone → 4 reinforced), **Bob snacks**, **cooked meals**, and **stone-tipped tool upgrades** (`scripts/game_manager.gd`).
-- **Survive:** **Hunger** drains over time (faster while moving). **Starvation** damages health at 0 hunger. High hunger can trigger passive healing. Hazards and **B.O.B.** in aggressive states also damage the player.
-- **Build:** Place **dirt**, **stone**, or **reinforced** blocks to shape terrain. **Reinforced** cells need a **pickaxe** to mine (player); B.O.B. skips reinforced tiles for his AI mines.
-- **Stabilize B.O.B.:** **Feed** him, deploy **Calm Totems** (aura forces friendly mode while inside), or manage distance and combat—see below.
-
-Night/day: `GameManager.enable_night_cycle` defaults to **false**; when enabled, day length is `day_length_seconds` and night affects Bob’s **safety** need (`scripts/bob_agent.gd`).
-
----
-
-## About B.O.B.
-
-### Role
-
-**B.O.B.** is the game’s **autonomous NPC companion**: not a player character, but a persistent **CharacterBody2D** agent (`scripts/bob_agent.gd`) that shares the world, inventory economy, and tilemap with you. He is framed as a chaotic partner—useful for spectacle and pressure—while the design grounds his actions in explicit state machines and numeric needs.
-
-### What he does
-
-- **Friendly mode:** Wanders to **forage targets**, mines adjacent exposed tiles for drops (fed into `collect_for_bob`), gains **hunger** / **energy**, and drifts near you with a side offset when close.
-- **Attack mode:** **Chases** you (with lead-ahead on your horizontal velocity), may **sabotage** (inventory theft when `GameManager.can_bob_sabotage()`), **force-closes doors**, **breaks chests**, **places climb steps** from his dirt/stone stock when you are high above him and no walk/jump path exists, and applies **bite**, **annoy**, and **shove** pressure (see exports).
-- **World denial:** When you are **low on health**, he can steer to **bury ripe berry bushes** near you by placing blocks (`_try_deny_player_food`).
-- **Sword discipline:** Only the **sword** reduces his **HP** (`PLAYER_HP_DAMAGE_WEAPON_ID`). He **respawns** off-screen after death, **always in ATTACK** with fresh HP (`_respawn_after_death`).
-
-### Needs and modes (technical)
-
-Exported fields on `BobAgent` drive **hunger**, **safety**, **curiosity**, **energy**, **trust_to_player**, **affection**, and **health** (max HP is synced from sword damage × `target_sword_hits_to_kill` and tier bonus—see `_sync_max_health_from_sword_balance`). Internal enum **`BobMode.FRIENDLY`** vs **`BobMode.ATTACK`** gates high-level behavior each physics tick.
-
-**Mode timer:** After `_roll_mode_timer`, he stays in the current mode for a random duration in `[friendly_mode_min_seconds, friendly_mode_max_seconds]` or `[attack_mode_min_seconds, attack_mode_max_seconds]` until the timer expires—**unless** overridden (totem / enrage floor).
-
-**Calm Totem:** While `_calm_aura_count > 0`, he is **forced FRIENDLY**, enrage is cleared, and mode selection returns early (`set_calm_aura_active` / `_select_mode`).
-
-**Hunger and biting:** Continuous **`bite_damage_per_second`** applies in bite range when hunger is below mode-specific ceilings (`bite_attack_hunger_max` / `bite_friendly_hunger_max`), raised while **hurt enrage** is active.
-
-**Feeding:** `receive_food` spikes hunger, health, safety, energy, trust, affection, and lowers curiosity—player feed also calls `suppress_bob_sabotage_for` on the manager (`scripts/player.gd`).
-
-### What causes behavior changes (mechanics, not lore)
-
-Behavior changes come from **code-visible triggers** in `scripts/bob_agent.gd` and hooks elsewhere:
-
-1. **Random mode roll** when `_mode_timer` hits zero: a **`bias_to_attack`** is computed, then compared to `randf()`.
-2. **Bias inputs** (all exported tunables): base `attack_mode_base_bias`; **early-game grace** reduces attack bias for the first ~16s and again until ~38s (`attack_bias_early_grace_*`); **high hunger** (`attack_bias_hunger_threshold`) pushes toward attack; **low trust** pushes toward attack; **low energy** reduces attack bias; **close range + sword equipped** applies a **penalty** to attack bias **unless** hurt-enrage ignores it; **hurt enrage** adds `hurt_enrage_attack_bias_add`. Noise: `attack_bias_randomness`. Result is clamped to `[attack_bias_min, attack_bias_max]`.
-3. **Calm Totem aura** overrides selection to **FRIENDLY** whenever active (see above).
-4. **Sword HP damage** via `receive_damage` (only when `melee_weapon == "sword"`): sets **ATTACK**, starts **`hurt_enrage_timer`**, applies knockback, reduces trust/affection/safety/hunger, and floors `_mode_timer` at `hurt_enrage_mode_timer_floor_seconds` if not in a totem aura. Enrage speeds annoy/shove/bite pacing and chase (`hurt_enrage_*` exports). Timer can **recharge** while you stay in sword melee range (`_update_enrage_melee_pressure`) or **clear** if you move beyond `hurt_enrage_player_back_off_clear_range`.
-5. **Respawn after defeat:** `_respawn_after_death` resets HP, clears enrage, sets mode to **ATTACK**, and rolls a new attack timer—documented in-game as angry return.
-6. **Player “bonk” without sword:** Pickaxe/axe/shovel/bare-hand hits on Bob do not cut HP but still call `suppress_bob_sabotage_for` on the manager for a shorter window (`scripts/player.gd`).
-
-For any balance or personality tuning not described here, rely on the **Inspector exports** on the `Bob` node / `bob_agent.gd` (search `@export` in that file).
+| Class / asset | Source |
+|---------------|--------|
+| `scripts/player.gd`, `scripts/main.gd`, `scripts/game_manager.gd` | Self-written |
+| `scripts/bob_agent.gd` | Self-written (FSM + needs autonomous agent) |
+| `scripts/world_tilemap.gd`, `scripts/run_records.gd` | Self-written |
+| `assets/kenney/block-pack/` | [Kenney Block Pack](https://kenney.nl/assets/block-pack) — CC0 |
+| `assets/blockpack/` | Kenney-derived / in-project tile and prop art |
+| `assets/kaykit/` | KayKit character textures (see `assets/kaykit/`) |
+| `assets/tiny16/` | Tiny 16-style sprite sheets used for actors |
+| `assets/characters/player_new.png`, `bob_new.png` | Project character art |
+| `assets/fonts/PressStart2P-Regular.ttf` | [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) — SIL Open Font License |
+| `assets/ui/bob_attack_start_screen.png` | Project UI |
+| `assets/audio/sfx/*.wav` | Procedural placeholders generated for this submission (CC0-style, documented here) |
+| `study/`, `csresources-main/` | Local coursework reference only (gitignored, not required to run) |
 
 ---
 
-## Repository layout (high level)
+# References
 
-| Path | Role |
-|------|------|
-| `project.godot` | App name, main scene, input map |
-| `scenes/` | `StartScreen.tscn`, `Main.tscn`, entities |
-| `scripts/` | `player.gd`, `bob_agent.gd`, `game_manager.gd`, `main.gd`, world/tile logic |
-| `assets/` | Art, audio, UI textures |
+- Godot 4.6 documentation: https://docs.godotengine.org/
+- Kenney — Block Pack (CC0): https://kenney.nl/assets/block-pack
+- Course assignment README template: https://github.com/skooter500/csresources/blob/main/assignment/README.md
+- Press Start 2P font: https://fonts.google.com/specimen/Press+Start+2P
+- Procedural SFX in `assets/audio/sfx/`: short tones/noise generated locally for royalty-free use in this prototype
 
-This README reflects the prototype as of the current scripts; gameplay is subject to scene export overrides in the editor.
+---
+
+# What I am most proud of in the assignment
+
+I am most proud of **B.O.B. as a readable autonomous agent**. He is not a simple chase script: `bob_agent.gd` combines a **mode timer**, **need variables**, and a **bias_to_attack** calculation so you can tune personality in the Inspector and still predict outcomes. Watching him switch from friendly foraging to attack after a sword hit—or calm down inside a totem aura—feels like emergent companionship rather than a single animation loop. Getting mining, placement, crafting, and Bob’s tile interactions to share one `WorldTilemap` without breaking each other took real integration work, and I think that shows in play.
+
+---
+
+# What I learned
+
+I learned how to structure **game AI as explicit state plus numeric needs** instead of one giant `if` chain. Splitting **FRIENDLY** and **ATTACK** behaviors, then driving transitions with timers, trust, hunger, and player actions, maps well to the autonomous-agents ideas from class. On the engine side, I got comfortable with Godot 4’s **TileMapLayer** streaming, **input action** maps, **audio buses** (Master / Music / SFX), and export presets. Debugging Bob—especially shared keys like **S** on move-down and mine—taught me to document controls clearly and test edge cases where systems overlap.
+
+---
+
+# Proposal submitted earlier can go here (if there is one)
+
+[Optional: link or paste your earlier proposal if required by your lecturer.]
