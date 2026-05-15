@@ -167,6 +167,7 @@ const PLAYER_HP_DAMAGE_WEAPON_ID := "sword"
 @export var affection: float = 35.0
 
 var _mode: BobMode = BobMode.FRIENDLY
+var _bite_sfx_cd: float = 0.0
 var _mode_timer: float = 0.0
 var _player: Node2D
 var _manager
@@ -226,6 +227,7 @@ func _process(delta: float) -> void:
 	_forage_mine_timer = maxf(0.0, _forage_mine_timer - delta)
 	_sword_scare_cd = maxf(0.0, _sword_scare_cd - delta)
 	_hurt_enrage_timer = maxf(0.0, _hurt_enrage_timer - delta)
+	_bite_sfx_cd = maxf(0.0, _bite_sfx_cd - delta)
 	_update_enrage_melee_pressure(delta)
 	_update_needs(delta)
 	_select_mode(delta)
@@ -460,7 +462,10 @@ func _select_mode(delta: float) -> void:
 		bias_to_attack += hurt_enrage_attack_bias_add
 	bias_to_attack = clampf(bias_to_attack + _rng.randf_range(-attack_bias_randomness, attack_bias_randomness), attack_bias_min, attack_bias_max)
 
+	var prev_mode := _mode
 	_mode = BobMode.ATTACK if _rng.randf() < bias_to_attack else BobMode.FRIENDLY
+	if prev_mode == BobMode.FRIENDLY and _mode == BobMode.ATTACK:
+		_play_attack_mode_sfx()
 	_roll_mode_timer()
 
 func set_calm_aura_active(active: bool) -> void:
@@ -1142,6 +1147,9 @@ func _try_bite_player(delta: float) -> void:
 		bite_tick *= hurt_enrage_bite_damage_multiplier
 	bite_tick *= _face_tank_pressure_damage_mult()
 	_manager.damage_player(bite_tick * delta)
+	if _bite_sfx_cd <= 0.0:
+		GameSfx.play_at(self, GameSfx.BOB_BITE, global_position, -3.0)
+		_bite_sfx_cd = 0.38
 	hunger = minf(100.0, hunger + 9.0 * delta)
 	trust_to_player = maxf(0.0, trust_to_player - 4.2 * delta)
 	_action_text = "biting player (starving!)"
@@ -1255,6 +1263,8 @@ func receive_damage(amount: float, hit_direction_x: float = 0.0, knockback_stren
 	affection = maxf(0.0, affection - dmg * 0.6)
 	if _calm_aura_count <= 0:
 		_hurt_enrage_timer = hurt_enrage_duration_seconds
+		if _mode != BobMode.ATTACK:
+			_play_attack_mode_sfx()
 		_mode = BobMode.ATTACK
 		_mode_timer = maxf(_mode_timer, hurt_enrage_mode_timer_floor_seconds)
 	_action_text = "angry after being hit!"
@@ -1361,3 +1371,7 @@ func get_life_debug_snapshot() -> Dictionary:
 		"action": _action_text,
 		"defeated": _is_dead,
 	}
+
+
+func _play_attack_mode_sfx() -> void:
+	GameSfx.play_at(self, GameSfx.BOB_MODE_ANGRY, global_position, -2.0)
