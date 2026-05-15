@@ -107,10 +107,12 @@ func _load_image_from_file_ignore_extension(absolute_path: String) -> Image:
 
 
 func _on_start_pressed() -> void:
+	_play_ui_click()
 	get_tree().change_scene_to_file(MAIN_SCENE)
 
 
 func _on_settings_pressed() -> void:
+	_play_ui_click()
 	_dialog_title.text = "Settings"
 	_settings_panel.visible = true
 	_keybinds_label.text = "Keybinds:\n\n%s" % _build_keybinds_text()
@@ -119,6 +121,7 @@ func _on_settings_pressed() -> void:
 
 
 func _on_quit_pressed() -> void:
+	_play_ui_click()
 	get_tree().quit()
 
 
@@ -128,9 +131,14 @@ func _open_dialog() -> void:
 
 
 func _close_dialog() -> void:
+	_play_ui_click()
 	_dialog.visible = false
 	_settings_panel.visible = false
 	_btn_start.grab_focus()
+
+
+func _play_ui_click() -> void:
+	GameSfx.play_ui(self, GameSfx.UI_CLICK, -6.0)
 
 
 func _format_action_line(action: String, label: String) -> String:
