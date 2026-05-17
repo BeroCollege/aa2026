@@ -8,7 +8,7 @@
 
 # Video
 
-Demo video: to be uploaded on Moodle (YouTube link omitted for this submission pass).
+Demo video: https://youtu.be/U2LmLgA4swU
 
 ---
 
