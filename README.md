@@ -83,11 +83,11 @@ The player (`scripts/player.gd`) moves on a tilemap with gravity, mines blocks u
 B.O.B. (`scripts/bob_agent.gd`) is a **CharacterBody2D** with an internal **`BobMode`** enum (**FRIENDLY** / **ATTACK**). Each frame he updates **hunger**, **safety**, **curiosity**, **energy**, **trust**, and **affection**, then picks movement and actions from the active mode.
 
 - **FRIENDLY:** forages and mines exposed tiles, seeks berries, wanders near the player when close.
-- **ATTACK:** chases the player, bites when hungry enough, annoys/shoves, may sabotage inventory, break chests, place climb steps, or bury berry bushes near a low-health player.
+- **ATTACK:** chases the player, bites when hungry enough, annoys/shoves, may sabotage inventory, place climb steps, or bury berry bushes near a low-health player.
 
-**Mode selection** runs on a timer: when it expires, a **bias_to_attack** score is built from tunable exports (hunger, trust, energy, sword proximity, hurt enrage, early-game grace, randomness) and compared to `randf()`. **Calm Totems** force **FRIENDLY** while the player stands in the aura. **Sword hits** apply HP damage, start **hurt enrage**, and lock **ATTACK** for a minimum duration. After death, B.O.B. respawns off-screen still angry.
+**Mode selection** runs on a timer: when it expires, a **bias_to_attack** score is built from tunable exports (hunger, trust, energy, sword proximity, hurt enrage, early-game grace, randomness) and compared to `randf()`. **Calm Totems** force **FRIENDLY** while the player stands in the aura. **Sword hits** apply HP damage, start **hurt enrage**, and lock **ATTACK** for a minimum duration. After death, B.O.B. respawns around 10 blocks away still angry.
 
-This is deliberate **autonomous-agent** design: behavior is explainable from exported numbers and state, not scripted cutscenes.
+This is deliberate **autonomous-agent** design: behavior is explainable from exported numbers and state.
 
 ## Audio
 
@@ -100,16 +100,14 @@ Short SFX under `assets/audio/sfx/` play through `GameSfx` (`scripts/game_sfx.gd
 | Action | Key |
 |--------|-----|
 | Move | **A** / **D**, **S** down, **W** up / climb intent |
-| Jump | **Space** (also **W** when grounded) |
+| Jump | **Space** / **W** |
 | Interact / gather | **E** |
 | Mine / break | **Left mouse**, **S** (also bound to move down—prefer mouse for mining) |
 | Place block | **V** (hold to repeat) |
 | Cycle place material | **X** |
 | Place Calm Totem | **T** |
-| Feed B.O.B. | **Q** |
 | Tools | **1** sword, **2** pickaxe, **3** axe, **4** shovel, **5** hoe |
 | Craft menu | **C** or **F** |
-| Craft shovel (menu open) | **6** |
 | Pause | **Escape** (closes craft first if open) |
 
 Full detail matches `project.godot` input map and `scripts/start_screen.gd` settings labels.
@@ -135,7 +133,6 @@ Full detail matches `project.godot` input map and `scripts/start_screen.gd` sett
 # References
 
 - Godot 4.6 documentation: https://docs.godotengine.org/
-- Course assignment README template: https://github.com/skooter500/csresources/blob/main/assignment/README.md
 - Press Start 2P font: https://fonts.google.com/specimen/Press+Start+2P
 - Project art assets in `assets/tiles/`, `assets/blockpack/`, `assets/characters/`, `assets/decor/`, `assets/food/`, `assets/tools/`, and `assets/ui/`: AI-generated/project-created assets used only for this coursework prototype
 - Procedural SFX in `assets/audio/sfx/`: short tones/noise generated locally for royalty-free use in this prototype
@@ -144,16 +141,16 @@ Full detail matches `project.godot` input map and `scripts/start_screen.gd` sett
 
 # What I am most proud of in the assignment
 
-I am most proud of **B.O.B. as a readable autonomous agent**. He is not a simple chase script: `bob_agent.gd` combines a **mode timer**, **need variables**, and a **bias_to_attack** calculation so you can tune personality in the Inspector and still predict outcomes. Watching him switch from friendly foraging to attack after a sword hit—or calm down inside a totem aura—feels like emergent companionship rather than a single animation loop. Getting mining, placement, crafting, and Bob’s tile interactions to share one `WorldTilemap` without breaking each other took real integration work, and I think that shows in play.
+I am most proud of **B.O.B Attack** not only being a great showcase of an autonomous agent but also a fun game with challenge to it. Then as well I am proud of B.O.B not being a simple chase script: `bob_agent.gd` combines a **mode timer**, **need variables**, and a **bias_to_attack** calculation so you can tune his behaviour and personality. Seeing him switch based on player interaction, environment around him, or hunger levels is very satisfying.
 
 ---
 
 # What I learned
 
-I learned how to structure **game AI as explicit state plus numeric needs** instead of one giant `if` chain. Splitting **FRIENDLY** and **ATTACK** behaviors, then driving transitions with timers, trust, hunger, and player actions, maps well to the autonomous-agents ideas from class. On the engine side, I got comfortable with Godot 4’s **TileMapLayer** streaming, **input action** maps, **audio buses** (Master / Music / SFX), and export presets. Debugging Bob—especially shared keys like **S** on move-down and mine—taught me to document controls clearly and test edge cases where systems overlap.
+I learned how to structure **game AI as explicit state plus numeric needs** instead of one giant `if` chain. Splitting **FRIENDLY** and **ATTACK** behaviors, then driving transitions with timers, trust, hunger, and player actions, maps well to the autonomous-agents ideas from class. I learned about state machines and how they work with the before mentioned variables to create "human like" movement and behaviour. On the engine side, I got comfortable with Godot 4’s **input action** maps, **audio buses** (Master / Music / SFX), and export presets.
 
 ---
 
-# Proposal submitted earlier can go here (if there is one)
+# Project Proposal
 
 [AA Assignment Proposal](docs/proposal/aa-assignment-proposal.pdf)
