@@ -67,6 +67,12 @@ var _upgrade_axe_button: Button
 var _upgrade_sword_button: Button
 var _upgrade_hoe_button: Button
 var _upgrade_shovel_button: Button
+var _craft_menu_wood_label: Label
+var _craft_menu_stone_label: Label
+var _craft_menu_food_label: Label
+var _craft_menu_dirt_label: Label
+var _craft_menu_totem_label: Label
+var _craft_section_labels: Dictionary = {}
 const TREE_SCENE := preload("res://scenes/TreeNode.tscn")
 const BERRY_BUSH_SCENE := preload("res://scenes/BerryBush.tscn")
 const _CRAFT_FOOD_TEX: Texture2D = preload("res://assets/blockpack/resource_food.png")
@@ -269,11 +275,11 @@ func _add_craft_row_icon_for_button(btn: Button, tex: Texture2D, mod: Color = Co
 	icon.name = btn.name.replace("Button", "Icon")
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	icon.offset_left = 12.0
+	icon.offset_left = btn.offset_left - 42.0
 	var top := btn.offset_top
-	icon.offset_top = top - 2.0
-	icon.offset_right = 44.0
-	icon.offset_bottom = top + 30.0
+	icon.offset_top = top + 2.0
+	icon.offset_right = btn.offset_left - 8.0
+	icon.offset_bottom = top + 36.0
 	icon.texture = tex
 	icon.modulate = mod
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -701,58 +707,85 @@ func _toggle_craft_menu() -> void:
 	var opening := not _craft_menu.visible
 	_craft_menu.visible = opening
 	if opening:
+		_promote_craft_menu_to_front()
 		GameSfx.play_ui(self, GameSfx.CRAFT_OPEN, -5.0)
+		_craft_feedback.text = ""
 		_refresh_craft_menu()
 
 func _close_craft_menu() -> void:
 	_craft_menu.visible = false
 
+func _promote_craft_menu_to_front() -> void:
+	_craft_menu.z_as_relative = false
+	_craft_menu.z_index = 4096
+	_craft_menu.move_to_front()
+
 func _refresh_craft_menu() -> void:
 	var wx: GameManager = _manager as GameManager
-	$CanvasLayer/CraftMenu/CraftToolButton.text = "Wooden Pickaxe (%d Wood)   Have:%d%s" % [
-		wx.get_wood_cost_for_tool("pickaxe"), _manager.inventory["pickaxe"], _tier_suffix("pickaxe")
-	]
-	$CanvasLayer/CraftMenu/CraftAxeButton.text = "Wooden Axe (%d Wood)   Have:%d%s" % [
-		wx.get_wood_cost_for_tool("axe"), _manager.inventory["axe"], _tier_suffix("axe")
-	]
-	$CanvasLayer/CraftMenu/CraftSwordButton.text = "Wooden Sword (%d Wood)   Have:%d%s" % [
-		wx.get_wood_cost_for_tool("sword"), _manager.inventory["sword"], _tier_suffix("sword")
-	]
-	$CanvasLayer/CraftMenu/CraftHoeButton.text = "Wooden Hoe (%d Wood)   Have:%d%s" % [
-		wx.get_wood_cost_for_tool("hoe"), _manager.inventory["hoe"], _tier_suffix("hoe")
-	]
-	$CanvasLayer/CraftMenu/CraftMealButton.text = "Cooked Meal (3 Food + 1 Wood)"
-	$CanvasLayer/CraftMenu/CraftSnackButton.text = "Bob Snack (2 Food + 1 Wood)   Have:%d" % _manager.inventory["bob_snacks"]
+	_update_craft_inventory_labels()
+	_set_craft_button(
+		$CanvasLayer/CraftMenu/CraftSwordButton,
+		"Sword",
+		[["wood", wx.get_wood_cost_for_tool("sword")]],
+		"Own %d" % _manager.inventory["sword"],
+		_can_afford([["wood", wx.get_wood_cost_for_tool("sword")]])
+	)
+	_set_craft_button(
+		$CanvasLayer/CraftMenu/CraftToolButton,
+		"Pickaxe",
+		[["wood", wx.get_wood_cost_for_tool("pickaxe")]],
+		"Own %d" % _manager.inventory["pickaxe"],
+		_can_afford([["wood", wx.get_wood_cost_for_tool("pickaxe")]])
+	)
+	_set_craft_button(
+		$CanvasLayer/CraftMenu/CraftAxeButton,
+		"Axe",
+		[["wood", wx.get_wood_cost_for_tool("axe")]],
+		"Own %d" % _manager.inventory["axe"],
+		_can_afford([["wood", wx.get_wood_cost_for_tool("axe")]])
+	)
+	_set_craft_button(
+		$CanvasLayer/CraftMenu/CraftMealButton,
+		"Meal",
+		[["food", 3], ["wood", 1]],
+		"Eat",
+		_can_afford([["food", 3], ["wood", 1]])
+	)
 	if _craft_shovel_button:
-		_craft_shovel_button.text = "Wooden Shovel (%d Wood)   Have:%d%s" % [
-			wx.get_wood_cost_for_tool("shovel"), _manager.inventory["shovel"], _tier_suffix("shovel")
-		]
+		_set_craft_button(
+			_craft_shovel_button,
+			"Shovel",
+			[["wood", wx.get_wood_cost_for_tool("shovel")]],
+			"Own %d" % _manager.inventory["shovel"],
+			_can_afford([["wood", wx.get_wood_cost_for_tool("shovel")]])
+		)
+	_set_craft_button(
+		$CanvasLayer/CraftMenu/CraftHoeButton,
+		"Hoe",
+		[["wood", wx.get_wood_cost_for_tool("hoe")]],
+		"Own %d" % _manager.inventory["hoe"],
+		_can_afford([["wood", wx.get_wood_cost_for_tool("hoe")]])
+	)
 	if _craft_totem_button:
-		_craft_totem_button.text = "Calm Totem (5 Wood + 5 Stone)   Have:%d" % _manager.inventory["totems"]
-	if _craft_reinforced_button:
-		_craft_reinforced_button.text = "Reinforced x4 (2 Wood + 4 Stone)   Have:%d" % _manager.inventory["reinforced"]
+		_set_craft_button(_craft_totem_button, "Calm Totem", [["wood", 5], ["stone", 5]], "Own %d" % _manager.inventory["totems"], _can_afford([["wood", 5], ["stone", 5]]))
 	if _upgrade_pickaxe_button:
-		_upgrade_pickaxe_button.text = "Upgrade Pickaxe → Stone (%s)" % wx.get_upgrade_cost_line("pickaxe")
-		_upgrade_pickaxe_button.disabled = _manager.inventory["pickaxe"] < 1 or wx.get_tool_tier("pickaxe") >= 1
+		_set_upgrade_button(_upgrade_pickaxe_button, "Stone Pickaxe", "pickaxe")
 	if _upgrade_axe_button:
-		_upgrade_axe_button.text = "Upgrade Axe → Stone (%s)" % wx.get_upgrade_cost_line("axe")
-		_upgrade_axe_button.disabled = _manager.inventory["axe"] < 1 or wx.get_tool_tier("axe") >= 1
+		_set_upgrade_button(_upgrade_axe_button, "Stone Axe", "axe")
 	if _upgrade_sword_button:
-		_upgrade_sword_button.text = "Upgrade Sword → Stone (%s)" % wx.get_upgrade_cost_line("sword")
-		_upgrade_sword_button.disabled = _manager.inventory["sword"] < 1 or wx.get_tool_tier("sword") >= 1
+		_set_upgrade_button(_upgrade_sword_button, "Stone Sword", "sword")
 	if _upgrade_hoe_button:
-		_upgrade_hoe_button.text = "Upgrade Hoe → Stone (%s)" % wx.get_upgrade_cost_line("hoe")
-		_upgrade_hoe_button.disabled = _manager.inventory["hoe"] < 1 or wx.get_tool_tier("hoe") >= 1
+		_set_upgrade_button(_upgrade_hoe_button, "Stone Hoe", "hoe")
 	if _upgrade_shovel_button:
-		_upgrade_shovel_button.text = "Upgrade Shovel → Stone (%s)" % wx.get_upgrade_cost_line("shovel")
-		_upgrade_shovel_button.disabled = _manager.inventory["shovel"] < 1 or wx.get_tool_tier("shovel") >= 1
-	_craft_feedback.text = "[S/LMB] mine  [X] cycle place  [V] place  [T] place totem"
+		_set_upgrade_button(_upgrade_shovel_button, "Stone Shovel", "shovel")
+	if _craft_feedback.text == "" or _craft_feedback.text.begins_with("["):
+		_craft_feedback.text = "[S/LMB] mine    [X] cycle place    [V] place    [T] totem"
 
 func _tier_suffix(tool: String) -> String:
 	var wx: GameManager = _manager as GameManager
 	if wx and wx.get_tool_tier(tool) >= 1:
-		return " ★Stone"
-	return " (Wood)"
+		return " ST"
+	return " WD"
 
 func _update_status_icons() -> void:
 	_update_actor_overhead(_player, _manager.player_health, _manager.player_hunger)
@@ -1100,45 +1133,351 @@ func _make_inventory_chip(parent: Control, tex: Texture2D, icon_mod: Color = Col
 	return cnt
 
 func _extend_craft_menu_ui() -> void:
-	# Tall panel: base crafts + upgrades + feedback.
-	_craft_menu.offset_bottom = 620.0
-	_craft_shovel_button = _add_craft_button("CraftShovelButton", "Wooden Shovel (Wood)", 256.0)
+	_configure_craft_panel_shell()
+	_create_craft_inventory_strip()
+	_craft_section_labels["tools"] = _add_craft_section_label("WOODEN TOOLS", 18.0, 100.0, 320.0)
+	_craft_section_labels["upgrades"] = _add_craft_section_label("STONE UPGRADES", 354.0, 100.0, 322.0)
+	_craft_section_labels["survival"] = _add_craft_section_label("SURVIVAL", 18.0, 368.0, 656.0)
+	_position_existing_craft_pair("CraftSword", 18.0, 128.0, 300.0)
+	_position_existing_craft_pair("CraftTool", 18.0, 172.0, 300.0)
+	_position_existing_craft_pair("CraftAxe", 18.0, 216.0, 300.0)
+	_craft_shovel_button = _add_craft_button("CraftShovelButton", "Wooden Shovel", 18.0, 260.0, 300.0)
 	_craft_shovel_button.pressed.connect(_on_craft_shovel_pressed)
 	_add_craft_row_icon_for_button(_craft_shovel_button, ToolStripIcons.atlas_texture_for_tool("shovel"))
-	_craft_totem_button = _add_craft_button("CraftTotemButton", "Calm Totem (5 Wood + 5 Stone)", 290.0)
+	_position_existing_craft_pair("CraftHoe", 18.0, 304.0, 300.0)
+	_position_existing_craft_pair("CraftSnack", 354.0, 128.0, 302.0, false)
+	_position_existing_craft_pair("CraftMeal", 18.0, 396.0, 300.0)
+	_craft_totem_button = _add_craft_button("CraftTotemButton", "Calm Totem", 354.0, 396.0, 302.0)
 	_craft_totem_button.pressed.connect(_on_craft_totem_pressed)
 	_add_craft_row_icon_for_button(_craft_totem_button, _CRAFT_WOOD_TEX, Color(0.52, 0.82, 1.0, 1.0))
-	_craft_reinforced_button = _add_craft_button("CraftReinforcedButton", "Reinforced x4 (2 Wood + 4 Stone)", 324.0)
+	_craft_reinforced_button = _add_craft_button("CraftReinforcedButton", "Reinforced x4", 354.0, 348.0, 302.0)
 	_craft_reinforced_button.pressed.connect(_on_craft_reinforced_pressed)
 	_add_craft_row_icon_for_button(_craft_reinforced_button, _CRAFT_TILE_STONE_TEX)
-	_upgrade_pickaxe_button = _add_craft_button("UpgradePickaxeButton", "Upgrade Pickaxe → Stone", 356.0)
-	_upgrade_pickaxe_button.pressed.connect(_on_upgrade_pickaxe_pressed)
-	_add_craft_row_icon_for_button(_upgrade_pickaxe_button, ToolStripIcons.atlas_texture_for_tool("pickaxe"))
-	_upgrade_axe_button = _add_craft_button("UpgradeAxeButton", "Upgrade Axe → Stone", 386.0)
-	_upgrade_axe_button.pressed.connect(_on_upgrade_axe_pressed)
-	_add_craft_row_icon_for_button(_upgrade_axe_button, ToolStripIcons.atlas_texture_for_tool("axe"))
-	_upgrade_sword_button = _add_craft_button("UpgradeSwordButton", "Upgrade Sword → Stone", 416.0)
+	_craft_reinforced_button.visible = false
+	var reinforced_icon := get_node_or_null("CanvasLayer/CraftMenu/CraftReinforcedIcon") as TextureRect
+	if reinforced_icon:
+		reinforced_icon.visible = false
+	_upgrade_sword_button = _add_craft_button("UpgradeSwordButton", "Stone Sword", 354.0, 128.0, 302.0)
 	_upgrade_sword_button.pressed.connect(_on_upgrade_sword_pressed)
 	_add_craft_row_icon_for_button(_upgrade_sword_button, ToolStripIcons.atlas_texture_for_tool("sword"))
-	_upgrade_hoe_button = _add_craft_button("UpgradeHoeButton", "Upgrade Hoe → Stone", 446.0)
-	_upgrade_hoe_button.pressed.connect(_on_upgrade_hoe_pressed)
-	_add_craft_row_icon_for_button(_upgrade_hoe_button, ToolStripIcons.atlas_texture_for_tool("hoe"))
-	_upgrade_shovel_button = _add_craft_button("UpgradeShovelButton", "Upgrade Shovel → Stone", 476.0)
+	_upgrade_pickaxe_button = _add_craft_button("UpgradePickaxeButton", "Stone Pickaxe", 354.0, 172.0, 302.0)
+	_upgrade_pickaxe_button.pressed.connect(_on_upgrade_pickaxe_pressed)
+	_add_craft_row_icon_for_button(_upgrade_pickaxe_button, ToolStripIcons.atlas_texture_for_tool("pickaxe"))
+	_upgrade_axe_button = _add_craft_button("UpgradeAxeButton", "Stone Axe", 354.0, 216.0, 302.0)
+	_upgrade_axe_button.pressed.connect(_on_upgrade_axe_pressed)
+	_add_craft_row_icon_for_button(_upgrade_axe_button, ToolStripIcons.atlas_texture_for_tool("axe"))
+	_upgrade_shovel_button = _add_craft_button("UpgradeShovelButton", "Stone Shovel", 354.0, 260.0, 302.0)
 	_upgrade_shovel_button.pressed.connect(_on_upgrade_shovel_pressed)
 	_add_craft_row_icon_for_button(_upgrade_shovel_button, ToolStripIcons.atlas_texture_for_tool("shovel"))
-	_craft_feedback.offset_top = 506.0
-	_craft_feedback.offset_bottom = 536.0
+	_upgrade_hoe_button = _add_craft_button("UpgradeHoeButton", "Stone Hoe", 354.0, 304.0, 302.0)
+	_upgrade_hoe_button.pressed.connect(_on_upgrade_hoe_pressed)
+	_add_craft_row_icon_for_button(_upgrade_hoe_button, ToolStripIcons.atlas_texture_for_tool("hoe"))
+	_craft_feedback.offset_left = 18.0
+	_craft_feedback.offset_top = 466.0
+	_craft_feedback.offset_right = 676.0
+	_craft_feedback.offset_bottom = 500.0
+	_craft_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_craft_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_mc_font(_craft_feedback, 10)
+	_apply_mc_label_outline(_craft_feedback)
+	_craft_feedback.add_theme_color_override("font_color", Color(0.86, 0.91, 0.98, 1.0))
 
-func _add_craft_button(node_name: String, label: String, top: float) -> Button:
+func _configure_craft_panel_shell() -> void:
+	_craft_menu.offset_left = 290.0
+	_craft_menu.offset_top = 96.0
+	_craft_menu.offset_right = 990.0
+	_craft_menu.offset_bottom = 642.0
+	_promote_craft_menu_to_front()
+	_craft_menu.add_theme_stylebox_override("panel", _craft_menu_style())
+	var title := $CanvasLayer/CraftMenu/CraftTitle as Label
+	title.text = "Crafting Pack"
+	title.offset_left = 18.0
+	title.offset_top = 14.0
+	title.offset_right = 430.0
+	title.offset_bottom = 40.0
+	_apply_mc_font(title, 16)
+	_apply_mc_label_outline(title)
+	title.add_theme_color_override("font_color", Color(0.96, 0.98, 1.0, 1.0))
+	var close := $CanvasLayer/CraftMenu/CloseCraftButton as Button
+	close.offset_left = 646.0
+	close.offset_top = 12.0
+	close.offset_right = 682.0
+	close.offset_bottom = 48.0
+	close.text = "X"
+	_style_craft_button(close, true)
+
+
+func _create_craft_inventory_strip() -> void:
+	_craft_menu_wood_label = _make_craft_menu_chip("CraftWoodChip", 18.0, 52.0, _CRAFT_WOOD_TEX)
+	_craft_menu_stone_label = _make_craft_menu_chip("CraftStoneChip", 126.0, 52.0, preload("res://assets/blockpack/resource_stone.png"))
+	_craft_menu_food_label = _make_craft_menu_chip("CraftFoodChip", 234.0, 52.0, _CRAFT_FOOD_TEX)
+	_craft_menu_dirt_label = _make_craft_menu_chip("CraftDirtChip", 354.0, 52.0, preload("res://assets/blockpack/tile_dirt.png"))
+	_craft_menu_totem_label = _make_craft_menu_chip("CraftTotemChip", 462.0, 52.0, preload("res://assets/blockpack/door_closed.png"), Color(0.52, 0.82, 1.0, 1.0))
+
+
+func _add_craft_section_label(label_text: String, x: float, y: float, w: float) -> Label:
+	var lbl := Label.new()
+	lbl.name = label_text.capitalize().replace(" ", "") + "Label"
+	lbl.text = label_text
+	lbl.offset_left = x
+	lbl.offset_top = y
+	lbl.offset_right = x + w
+	lbl.offset_bottom = y + 22.0
+	_apply_mc_font(lbl, 10)
+	_apply_mc_label_outline(lbl)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.58, 1.0))
+	_craft_menu.add_child(lbl)
+	return lbl
+
+
+func _position_existing_craft_pair(prefix: String, x: float, y: float, w: float, is_visible: bool = true) -> void:
+	var icon := get_node_or_null("CanvasLayer/CraftMenu/%sIcon" % prefix) as TextureRect
+	var btn := get_node_or_null("CanvasLayer/CraftMenu/%sButton" % prefix) as Button
+	if icon:
+		icon.visible = is_visible
+		icon.offset_left = x + 8.0
+		icon.offset_top = y + 2.0
+		icon.offset_right = x + 42.0
+		icon.offset_bottom = y + 36.0
+	if btn:
+		btn.visible = is_visible
+		btn.offset_left = x + 50.0
+		btn.offset_top = y
+		btn.offset_right = x + w
+		btn.offset_bottom = y + 38.0
+		_style_craft_button(btn)
+
+
+func _add_craft_button(node_name: String, label: String, x: float, top: float, width: float) -> Button:
 	var btn := Button.new()
 	btn.name = node_name
 	btn.text = label
-	btn.offset_left = 52.0
+	btn.offset_left = x + 50.0
 	btn.offset_top = top
-	btn.offset_right = 426.0
-	btn.offset_bottom = top + 26.0
+	btn.offset_right = x + width
+	btn.offset_bottom = top + 38.0
+	_style_craft_button(btn)
 	_craft_menu.add_child(btn)
 	return btn
+
+
+func _make_craft_menu_chip(node_name: String, x: float, y: float, tex: Texture2D, icon_mod: Color = Color.WHITE) -> Label:
+	var chip := Panel.new()
+	chip.name = node_name
+	chip.offset_left = x
+	chip.offset_top = y
+	chip.offset_right = x + 94.0
+	chip.offset_bottom = y + 34.0
+	chip.add_theme_stylebox_override("panel", _inventory_chip_style())
+	var hb := HBoxContainer.new()
+	hb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hb.offset_left = 6.0
+	hb.offset_top = 4.0
+	hb.offset_right = -6.0
+	hb.offset_bottom = -4.0
+	hb.add_theme_constant_override("separation", 7)
+	chip.add_child(hb)
+	var icon := TextureRect.new()
+	icon.texture = tex
+	icon.modulate = icon_mod
+	icon.custom_minimum_size = Vector2(24, 24)
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hb.add_child(icon)
+	var cnt := Label.new()
+	cnt.text = "0"
+	cnt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_apply_mc_font(cnt, 10)
+	_apply_mc_label_outline(cnt)
+	cnt.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0, 1.0))
+	hb.add_child(cnt)
+	_craft_menu.add_child(chip)
+	return cnt
+
+
+func _update_craft_inventory_labels() -> void:
+	var labels := {
+		_craft_menu_wood_label: "wood",
+		_craft_menu_stone_label: "stone",
+		_craft_menu_food_label: "food",
+		_craft_menu_dirt_label: "dirt",
+		_craft_menu_totem_label: "totems",
+	}
+	for lbl in labels:
+		if lbl:
+			lbl.text = str(_manager.inventory.get(labels[lbl], 0))
+
+
+func _set_upgrade_button(btn: Button, label: String, tool: String) -> void:
+	var wx: GameManager = _manager as GameManager
+	var cost := _upgrade_cost_items(tool)
+	var status := "Done" if wx.get_tool_tier(tool) >= 1 else ("Need" if int(_manager.inventory.get(tool, 0)) < 1 else "Ready")
+	var ready := int(_manager.inventory.get(tool, 0)) >= 1 and wx.get_tool_tier(tool) < 1 and _can_afford(cost)
+	_set_craft_button(btn, label, cost, status, ready)
+
+
+func _upgrade_cost_items(tool: String) -> Array:
+	if not GameManager.TOOL_UPGRADE_COST.has(tool):
+		return []
+	var c: Dictionary = GameManager.TOOL_UPGRADE_COST[tool]
+	return [["wood", int(c.get("wood", 0))], ["stone", int(c.get("stone", 0))]]
+
+
+func _set_craft_button(btn: Button, label: String, cost: Array, status: String, can_use: bool) -> void:
+	if not btn:
+		return
+	btn.text = ""
+	btn.disabled = not can_use and not _manager.debug_mode_enabled
+	_style_craft_button(btn)
+	_update_button_slot_content(btn, label, status, cost)
+
+
+func _update_button_slot_content(btn: Button, label: String, status: String, cost: Array) -> void:
+	for node_name in ["SlotName", "SlotStatus", "CostIcons"]:
+		var old := btn.get_node_or_null(node_name)
+		if old:
+			old.free()
+	var disabled_text: bool = btn.disabled and not _manager.debug_mode_enabled
+	var name_label := Label.new()
+	name_label.name = "SlotName"
+	name_label.text = label
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.offset_left = 12.0
+	name_label.offset_top = 9.0
+	name_label.offset_right = 124.0
+	name_label.offset_bottom = 30.0
+	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_apply_mc_font(name_label, 9)
+	_apply_mc_label_outline(name_label)
+	name_label.add_theme_color_override("font_color", Color(0.55, 0.57, 0.62, 0.95) if disabled_text else Color(0.94, 0.96, 1.0, 1.0))
+	btn.add_child(name_label)
+
+	var status_label := Label.new()
+	status_label.name = "SlotStatus"
+	status_label.text = status
+	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status_label.offset_left = 116.0
+	status_label.offset_top = 9.0
+	status_label.offset_right = 172.0
+	status_label.offset_bottom = 30.0
+	status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_apply_mc_font(status_label, 8)
+	_apply_mc_label_outline(status_label)
+	var status_color := Color(0.9, 0.92, 0.98, 1.0)
+	if status == "Ready":
+		status_color = Color(0.72, 1.0, 0.72, 1.0)
+	elif status == "Need":
+		status_color = Color(0.84, 0.64, 0.64, 1.0)
+	elif status == "Done":
+		status_color = Color(0.9, 0.84, 0.52, 1.0)
+	status_label.add_theme_color_override("font_color", Color(0.5, 0.52, 0.58, 0.9) if disabled_text else status_color)
+	btn.add_child(status_label)
+
+	var row := HBoxContainer.new()
+	row.name = "CostIcons"
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	row.offset_left = -76.0 if cost.size() <= 1 else -128.0
+	row.offset_top = 7.0
+	row.offset_right = -8.0
+	row.offset_bottom = 32.0
+	row.add_theme_constant_override("separation", 5)
+	btn.add_child(row)
+	for entry in cost:
+		var kind := String(entry[0])
+		var amount := int(entry[1])
+		var count := Label.new()
+		count.text = "%dx" % amount
+		count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_apply_mc_font(count, 8)
+		_apply_mc_label_outline(count)
+		count.add_theme_color_override("font_color", Color(0.54, 0.56, 0.62, 0.9) if disabled_text else Color(0.96, 0.98, 1.0, 1.0))
+		row.add_child(count)
+		var icon := TextureRect.new()
+		icon.texture = _craft_cost_texture(kind)
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.custom_minimum_size = Vector2(22, 22)
+		icon.modulate = Color(0.6, 0.62, 0.68, 0.9) if disabled_text else Color.WHITE
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(icon)
+
+
+func _craft_cost_texture(kind: String) -> Texture2D:
+	match kind:
+		"wood":
+			return _CRAFT_WOOD_TEX
+		"stone":
+			return preload("res://assets/blockpack/resource_stone.png")
+		"food":
+			return _CRAFT_FOOD_TEX
+		_:
+			return _CRAFT_WOOD_TEX
+
+
+func _can_afford(costs: Array) -> bool:
+	if _manager.debug_mode_enabled:
+		return true
+	for entry in costs:
+		if int(_manager.inventory.get(String(entry[0]), 0)) < int(entry[1]):
+			return false
+	return true
+
+
+func _style_craft_button(btn: Button, compact: bool = false) -> void:
+	if not btn:
+		return
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	btn.add_theme_font_override("font", _mc_pixel_font())
+	btn.add_theme_font_size_override("font_size", 10 if compact else 9)
+	btn.add_theme_color_override("font_color", Color(0.92, 0.94, 0.98, 1.0))
+	btn.add_theme_color_override("font_disabled_color", Color(0.55, 0.57, 0.62, 0.95))
+	var content_right := 8.0 if compact else 6.0
+	btn.add_theme_stylebox_override("normal", _craft_button_style(Color(0.11, 0.13, 0.17, 0.96), Color(0.31, 0.36, 0.44, 1.0), content_right))
+	btn.add_theme_stylebox_override("hover", _craft_button_style(Color(0.16, 0.2, 0.25, 0.98), Color(0.66, 0.77, 0.92, 1.0), content_right))
+	btn.add_theme_stylebox_override("pressed", _craft_button_style(Color(0.08, 0.1, 0.13, 1.0), Color(1.0, 0.9, 0.48, 1.0), content_right))
+	btn.add_theme_stylebox_override("disabled", _craft_button_style(Color(0.08, 0.085, 0.095, 0.72), Color(0.22, 0.24, 0.28, 0.8), content_right))
+
+
+func _craft_button_style(bg: Color, border: Color, content_right: float = 6.0) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = bg
+	s.border_width_left = 1
+	s.border_width_top = 1
+	s.border_width_right = 1
+	s.border_width_bottom = 1
+	s.border_color = border
+	s.corner_radius_top_left = 5
+	s.corner_radius_top_right = 5
+	s.corner_radius_bottom_right = 5
+	s.corner_radius_bottom_left = 5
+	s.content_margin_left = 9.0
+	s.content_margin_top = 5.0
+	s.content_margin_right = content_right
+	s.content_margin_bottom = 5.0
+	return s
+
+
+func _craft_menu_style() -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.06, 0.075, 0.095, 0.93)
+	s.border_width_left = 2
+	s.border_width_top = 2
+	s.border_width_right = 2
+	s.border_width_bottom = 2
+	s.border_color = Color(0.42, 0.49, 0.6, 0.96)
+	s.corner_radius_top_left = 8
+	s.corner_radius_top_right = 8
+	s.corner_radius_bottom_right = 8
+	s.corner_radius_bottom_left = 8
+	s.content_margin_left = 10.0
+	s.content_margin_top = 10.0
+	s.content_margin_right = 10.0
+	s.content_margin_bottom = 10.0
+	return s
 
 func _create_debug_label() -> void:
 	_debug_label = Label.new()

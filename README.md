@@ -1,10 +1,8 @@
 # BOB Survival (BOB ATTACK)
 
-**Name:** [Your name]
+**Name:** Seán Flood
 
-**Student Number:** ::STUDENT_NUMBER::
-
-**Class Group:** [Your class group]
+**Student Number:** C22421292
 
 ---
 
@@ -16,11 +14,25 @@ Demo video: to be uploaded on Moodle (YouTube link omitted for this submission p
 
 # Screenshots
 
-Add PNG files under `docs/screenshots/` (see `docs/screenshots/README.md` for suggested shots).
+## Start screen
 
-![Gameplay placeholder](docs/screenshots/gameplay.png)
+![BOB ATTACK start screen](docs/screenshots/start_screen.png)
 
-![Start screen placeholder](docs/screenshots/start_screen.png)
+## Gameplay overview
+
+![Gameplay overview with player, B.O.B., terrain, HUD and resources](docs/screenshots/gameplay_overview.png)
+
+## B.O.B. friendly mode
+
+![B.O.B. in friendly autonomous mode](docs/screenshots/bob_friendly_mode.png)
+
+## B.O.B. attack mode
+
+![B.O.B. in attack mode chasing and pressuring the player](docs/screenshots/bob_attack_mode.png)
+
+## Crafting menu
+
+![Inventory-styled crafting menu](docs/screenshots/crafting_menu.png)
 
 ---
 
@@ -148,4 +160,4 @@ I learned how to structure **game AI as explicit state plus numeric needs** inst
 
 # Proposal submitted earlier can go here (if there is one)
 
-[Optional: link or paste your earlier proposal if required by your lecturer.]
+[AA Assignment Proposal](docs/proposal/aa-assignment-proposal.pdf)
