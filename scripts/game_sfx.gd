@@ -3,7 +3,9 @@ extends RefCounted
 
 const BUS_SFX := &"SFX"
 
-const MINE_HIT := preload("res://assets/audio/sfx/mine_hit.wav")
+const MINE_HIT := "res://assets/audio/sfx/pew.wav"
+const PUNCH := "res://assets/audio/sfx/pew.wav"
+const CONSUME := "res://assets/audio/sfx/nomnom.wav"
 const BOB_BITE := preload("res://assets/audio/sfx/bob_bite.wav")
 const UI_CLICK := preload("res://assets/audio/sfx/ui_click.wav")
 const BOB_MODE_ANGRY := preload("res://assets/audio/sfx/bob_mode_angry.wav")
@@ -11,12 +13,21 @@ const CRAFT_OPEN := preload("res://assets/audio/sfx/craft_open.wav")
 const PLACE_BLOCK := preload("res://assets/audio/sfx/place_block.wav")
 
 
-static func play_ui(parent: Node, stream: AudioStream, volume_db: float = 0.0) -> void:
-	if stream == null or parent == null:
+static func _resolve_stream(stream: Variant) -> AudioStream:
+	if stream is AudioStream:
+		return stream as AudioStream
+	if stream is String:
+		return AudioStreamWAV.load_from_file(ProjectSettings.globalize_path(stream))
+	return null
+
+
+static func play_ui(parent: Node, stream: Variant, volume_db: float = 0.0) -> void:
+	var resolved := _resolve_stream(stream)
+	if resolved == null or parent == null:
 		return
 	var player := AudioStreamPlayer.new()
 	player.bus = BUS_SFX
-	player.stream = stream
+	player.stream = resolved
 	player.volume_db = volume_db
 	parent.add_child(player)
 	player.play()
@@ -25,15 +36,16 @@ static func play_ui(parent: Node, stream: AudioStream, volume_db: float = 0.0) -
 
 static func play_at(
 	parent: Node,
-	stream: AudioStream,
+	stream: Variant,
 	world_pos: Vector2,
 	volume_db: float = 0.0
 ) -> void:
-	if stream == null or parent == null:
+	var resolved := _resolve_stream(stream)
+	if resolved == null or parent == null:
 		return
 	var player := AudioStreamPlayer2D.new()
 	player.bus = BUS_SFX
-	player.stream = stream
+	player.stream = resolved
 	player.volume_db = volume_db
 	player.global_position = world_pos
 	parent.add_child(player)

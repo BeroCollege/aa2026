@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cgk17dyr1s6m4"]
 
 [ext_resource type="Script" path="res://scripts/tilled_patch.gd" id="1_6d0cf"]
-[ext_resource type="Texture2D" path="res://assets/blockpack/tile_dirt.png" id="2_8frmy"]
+[ext_resource type="Texture2D" path="res://assets/tiles/dirt.png" id="2_8frmy"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_vjmed"]
 size = Vector2(52, 34)

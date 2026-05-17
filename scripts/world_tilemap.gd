@@ -15,7 +15,6 @@ const DIRT_SOURCE_ID := 1
 const STONE_SOURCE_ID := 2
 const WATER_SOURCE_ID := 3
 const LAVA_SOURCE_ID := 4
-const REINFORCED_SOURCE_ID := 5
 const GRASS_LEFT_SOURCE_ID := 6
 const GRASS_RIGHT_SOURCE_ID := 7
 const GRASS_FULL_SOURCE_ID := 8
@@ -108,7 +107,6 @@ func _build_tileset() -> TileSet:
 	_add_single_tile_source(set, STONE_SOURCE_ID, "res://assets/tiles/stone.png")
 	_add_single_tile_source(set, WATER_SOURCE_ID, "res://assets/blockpack/tile_water.png")
 	_add_single_tile_source(set, LAVA_SOURCE_ID, "res://assets/blockpack/tile_lava.png")
-	_add_solid_color_tile_source(set, REINFORCED_SOURCE_ID, Color(0.32, 0.38, 0.55, 1.0))
 	_add_single_tile_source(set, GRASS_LEFT_SOURCE_ID, "res://assets/tiles/grass_left.png")
 	_add_single_tile_source(set, GRASS_RIGHT_SOURCE_ID, "res://assets/tiles/grass_right.png")
 	_add_single_tile_source(set, GRASS_FULL_SOURCE_ID, "res://assets/tiles/grass_full.png")
@@ -142,35 +140,6 @@ func _normalized_tile_texture(texture_path: String) -> Texture2D:
 	var dup: Image = img.duplicate()
 	dup.resize(TILE_SIZE, TILE_SIZE, Image.INTERPOLATE_NEAREST)
 	return ImageTexture.create_from_image(dup)
-
-func _add_solid_color_tile_source(set: TileSet, source_id: int, color: Color) -> void:
-	var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
-	img.fill(color)
-	var border_color := color.darkened(0.45)
-	for x in range(TILE_SIZE):
-		img.set_pixel(x, 0, border_color)
-		img.set_pixel(x, 1, border_color)
-		img.set_pixel(x, TILE_SIZE - 1, border_color)
-		img.set_pixel(x, TILE_SIZE - 2, border_color)
-	for y in range(TILE_SIZE):
-		img.set_pixel(0, y, border_color)
-		img.set_pixel(1, y, border_color)
-		img.set_pixel(TILE_SIZE - 1, y, border_color)
-		img.set_pixel(TILE_SIZE - 2, y, border_color)
-	# Subtle rivet diamonds for visual texture.
-	var rivet_color := color.lightened(0.25)
-	var rivets := [Vector2i(16, 16), Vector2i(48, 16), Vector2i(16, 48), Vector2i(48, 48), Vector2i(32, 32)]
-	for r in rivets:
-		for dx in range(-2, 3):
-			for dy in range(-2, 3):
-				if absi(dx) + absi(dy) <= 2:
-					img.set_pixel(r.x + dx, r.y + dy, rivet_color)
-	var tex := ImageTexture.create_from_image(img)
-	var src := TileSetAtlasSource.new()
-	src.texture = tex
-	src.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
-	src.create_tile(Vector2i.ZERO)
-	set.add_source(src, source_id)
 
 func _source_ids() -> Dictionary:
 	return {
@@ -364,8 +333,6 @@ func _required_hits_for_source(source_id: int) -> int:
 			return 2
 		STONE_SOURCE_ID:
 			return 4
-		REINFORCED_SOURCE_ID:
-			return 8
 		_:
 			return 1
 
@@ -377,8 +344,6 @@ func _primary_drop_kind_for_source(source_id: int) -> String:
 			return "dirt"
 		STONE_SOURCE_ID:
 			return "stone"
-		REINFORCED_SOURCE_ID:
-			return "reinforced"
 		_:
 			return ""
 
@@ -388,17 +353,12 @@ func _build_drops_for_source(source_id: int) -> Array:
 			return [{"kind": "dirt", "amount": 1}]
 		STONE_SOURCE_ID:
 			return [{"kind": "stone", "amount": 1}]
-		REINFORCED_SOURCE_ID:
-			return [{"kind": "reinforced", "amount": 1}]
 		_:
 			return []
 
-## Mined surface grass: dirt (+ optional seeds). Tile becomes air (not a dirt block); inventory gets dirt only.
+## Mined surface grass becomes air and drops dirt into the inventory.
 func _build_drops_for_grass_stripped_to_dirt() -> Array:
-	var drops: Array = [{"kind": "dirt", "amount": 1}]
-	if _terrain_rng and _terrain_rng.randf() < 0.18:
-		drops.append({"kind": "seeds", "amount": 1})
-	return drops
+	return [{"kind": "dirt", "amount": 1}]
 
 
 # Backwards-compat shim for callers that still reference the old helper.
@@ -417,17 +377,11 @@ func try_mine_cell(
 		return {"ok": false, "reason": "empty"}
 	if source_id == LAVA_SOURCE_ID:
 		return {"ok": false, "reason": "hazard"}
-	# Reinforced blocks: only a pickaxe touches them.
-	if source_id == REINFORCED_SOURCE_ID and tool != "pickaxe":
-		return {"ok": false, "reason": "needs_pickaxe"}
 	var key := _cell_key(cell)
 	var damage := 1
 	var matched_tool := false
-	# Pickaxe: stone & reinforced only. Shovel: dirt & surface grass only. No other tool gets tile bonuses.
+	# Pickaxe: stone only. Shovel: dirt & surface grass only. No other tool gets tile bonuses.
 	if tool == "pickaxe" and source_id == STONE_SOURCE_ID:
-		damage = 2
-		matched_tool = true
-	elif tool == "pickaxe" and source_id == REINFORCED_SOURCE_ID:
 		damage = 2
 		matched_tool = true
 	elif tool == "shovel" and source_id == DIRT_SOURCE_ID:
@@ -508,17 +462,12 @@ func try_place_cell(cell: Vector2i, kind: String) -> Dictionary:
 	_refresh_surface_grass_visuals_range(cell.x - 1, cell.x + 1)
 	return {"ok": true, "kind": kind, "removed_plants": removed_plants}
 
-func is_reinforced_cell(cell: Vector2i) -> bool:
-	return get_cell_source_id(cell) == REINFORCED_SOURCE_ID
-
 func _source_id_for_kind(kind: String) -> int:
 	match kind:
 		"dirt":
 			return DIRT_SOURCE_ID
 		"stone":
 			return STONE_SOURCE_ID
-		"reinforced":
-			return REINFORCED_SOURCE_ID
 		_:
 			return -1
 

@@ -69,7 +69,7 @@ var _is_grounded: bool = false
 var _knockback_velocity: Vector2 = Vector2.ZERO
 var _last_move_x: float = 0.0
 var _place_kind: String = "dirt"
-var _place_kinds: Array[String] = ["dirt", "stone", "reinforced"]
+var _place_kinds: Array[String] = ["dirt", "stone"]
 var _place_cooldown: float = 0.0
 var _totem_scene := preload("res://scenes/PlacedTotem.tscn")
 var _melee_cooldown: float = 0.0
@@ -208,7 +208,7 @@ func _handle_interact() -> void:
 		var result: Dictionary = node.gather(_selected_tool, _tool_gather_power(_selected_tool, node))
 		_set_action("mine", 0.35)
 		if int(result.get("amount", 0)) > 0:
-			_manager.collect_for_player_resource(str(result.get("kind", "wood")), int(result["amount"]))
+			_collect_player_resource(str(result.get("kind", "wood")), int(result["amount"]))
 			_last_hint = "Gathered %s x%d." % [str(result.get("kind", "resource")), int(result["amount"])]
 		elif str(result.get("message", "")) != "":
 			_last_hint = str(result["message"])
@@ -219,12 +219,12 @@ func _handle_interact() -> void:
 
 	node = _find_nearest_group_node("crops")
 	if node:
-		_last_hint = "You need a hoe to harvest plants and get seeds."
+		_last_hint = "You need a hoe to harvest plants."
 		return
 
 	node = _find_nearest_group_node("tilled_patches")
 	if node and not node.get("has_crop"):
-		_last_hint = "Use a hoe here to plant seeds."
+		_last_hint = "Use a hoe here to plant crops."
 		return
 
 	node = _find_nearest_group_node("chests")
@@ -232,7 +232,7 @@ func _handle_interact() -> void:
 		var loot: int = node.loot()
 		_set_action("collect", 0.35)
 		if loot > 0:
-			_manager.collect_for_player_resource("food", loot)
+			_collect_player_resource("food", loot)
 			_last_hint = "Looted chest for %d supplies." % loot
 		else:
 			_last_hint = "Chest is empty."
@@ -286,7 +286,7 @@ func _try_mine_resource_under_cursor() -> bool:
 			var node := col_obj as Node
 			var result: Dictionary = node.gather(_selected_tool, _tool_gather_power(_selected_tool, node))
 			if int(result.get("amount", 0)) > 0 and _manager:
-				_manager.collect_for_player_resource(str(result.get("kind", "wood")), int(result["amount"]))
+				_collect_player_resource(str(result.get("kind", "wood")), int(result["amount"]))
 				_last_hint = "Gathered %s x%d." % [str(result.get("kind", "resource")), int(result["amount"])]
 			elif str(result.get("message", "")) != "":
 				_last_hint = str(result["message"])
@@ -306,6 +306,7 @@ func _attack_hostile_nearby() -> bool:
 	var monster := _find_nearest_group_node("monsters")
 	if _selected_tool != NONE_TOOL and monster and monster.has_method("receive_damage") and _is_target_in_melee_range(monster):
 		monster.receive_damage(_tool_combat_damage(_selected_tool))
+		GameSfx.play_at(self, GameSfx.PUNCH, (monster as Node2D).global_position, -4.0)
 		_set_action("mine", 0.24)
 		_melee_cooldown = melee_attack_cooldown_seconds
 		_last_hint = "Hit monster with %s." % _selected_tool
@@ -324,14 +325,16 @@ func _attack_hostile_nearby() -> bool:
 			if hit_dir == 0.0:
 				hit_dir = 1.0 if (($Body as Sprite2D).scale.x >= 0.0) else -1.0
 			bob.receive_damage(_tool_combat_damage(_selected_tool), hit_dir, sword_bob_knockback_strength, BOB_HP_LOSS_WEAPON_ID)
+			GameSfx.play_at(self, GameSfx.PUNCH, (bob as Node2D).global_position, -4.0)
 			_set_action("mine", 0.2)
 			_melee_cooldown = melee_attack_cooldown_seconds
 			_last_hint = "You hit B.O.B. with the sword — heavy discipline."
 			if _manager:
 				_manager.suppress_bob_sabotage_for(2.2)
 			return true
-		if _selected_tool == "pickaxe" or _selected_tool == "axe" or _selected_tool == "shovel" or _selected_tool == NONE_TOOL:
-			_set_action("mine", 0.22)
+			if _selected_tool == "pickaxe" or _selected_tool == "axe" or _selected_tool == "shovel" or _selected_tool == NONE_TOOL:
+				GameSfx.play_at(self, GameSfx.PUNCH, (bob as Node2D).global_position, -4.0)
+				_set_action("mine", 0.22)
 			_melee_cooldown = melee_attack_cooldown_seconds
 			if _selected_tool == NONE_TOOL:
 				_last_hint = "Punched B.O.B. — no effect on his HP; use the sword to discipline."
@@ -358,28 +361,22 @@ func _try_hoe_crop_actions() -> bool:
 	if crop and crop.has_method("harvest"):
 		var harvest_result: Dictionary = crop.harvest(true)
 		var food_gain := int(harvest_result.get("food", 0))
-		var seed_gain := int(harvest_result.get("seeds", 0))
 		if food_gain > 0:
-			_manager.collect_for_player_resource("food", food_gain)
-			_manager.collect_for_player_resource("seeds", seed_gain)
+			_collect_player_resource("food", food_gain)
 			_set_action("collect", 0.45)
-			_last_hint = "Harvested with hoe (+%d food, +%d seeds)." % [food_gain, seed_gain]
+			_last_hint = "Harvested with hoe (+%d food)." % food_gain
 		else:
 			_last_hint = "Crop is regrowing..."
 		return true
 
 	var patch := _find_nearest_group_node("tilled_patches")
 	if patch and not patch.get("has_crop"):
-		if _manager.inventory["seeds"] <= 0:
-			_last_hint = "No seeds available. Harvest crops first."
-			return true
-		_manager.inventory["seeds"] -= 1
 		var planted := _crop_scene.instantiate() as Area2D
 		planted.position = (patch as Node2D).global_position + Vector2(0, -26)
 		get_tree().current_scene.get_node("Crops").add_child(planted)
 		patch.set_has_crop(true)
 		_set_action("collect", 0.35)
-		_last_hint = "Planted crop seed."
+		_last_hint = "Planted crop."
 		return true
 
 	_create_tilled_patch()
@@ -497,13 +494,15 @@ func _try_feed_bob() -> void:
 	_set_action("feed", 0.4)
 	_last_hint = "Fed B.O.B. — calmer, and he won't rifle your pack for a few seconds."
 
+func _collect_player_resource(kind: String, amount: int) -> void:
+	if not _manager or amount <= 0:
+		return
+	_manager.collect_for_player_resource(kind, amount)
+	if kind == "food":
+		GameSfx.play_at(self, GameSfx.CONSUME, global_position, -4.0)
+
 func get_selected_tool() -> String:
 	return _selected_tool
-
-func apply_debug_default_tool() -> void:
-	if _manager and int(_manager.inventory.get("pickaxe", 0)) > 0:
-		_selected_tool = "pickaxe"
-	_ensure_valid_tool_selection()
 
 func get_last_move_x() -> float:
 	return _last_move_x
@@ -665,9 +664,7 @@ func _try_mine_tile_under_cursor() -> bool:
 	if not bool(result.get("ok", false)):
 		_clear_tile_mining_darken_visual()
 		var reason := str(result.get("reason", ""))
-		if reason == "needs_pickaxe":
-			_last_hint = "Reinforced wall needs a pickaxe."
-		elif reason == "empty":
+		if reason == "empty":
 			_last_hint = "No block there."
 		elif reason == "hazard":
 			_last_hint = "Cannot mine that block."
@@ -689,7 +686,7 @@ func _try_mine_tile_under_cursor() -> bool:
 			if amount <= 0 or kind == "":
 				continue
 			if _manager != null:
-				_manager.collect_for_player_resource(kind, amount)
+				_collect_player_resource(kind, amount)
 			if primary_kind == "":
 				primary_kind = kind
 		if primary_kind != "" and _manager == null and fb == "":
@@ -800,7 +797,7 @@ func _try_place_totem() -> bool:
 	get_parent().add_child(totem)
 	totem.global_position = spawn
 	_manager.inventory["totems"] = int(_manager.inventory["totems"]) - 1
-	_last_hint = "Calm Totem placed. B.O.B. inside its aura turns friendly."
+	_last_hint = "Calm Totem placed. B.O.B. inside its aura turns friendly for 60 seconds."
 	return true
 
 func _is_target_within_local_mine_range(player_cell: Vector2i, target_cell: Vector2i) -> bool:

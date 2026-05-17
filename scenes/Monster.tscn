@@ -1,16 +1,15 @@
-[gd_scene format=3 uid="uid://dhkn3dylh2x6r"]
+[gd_scene format=3 uid="uid://b8ykf80c6skh4"]
 
-[ext_resource type="Script" path="res://scripts/monster.gd" id="1_2g0a1"]
+[ext_resource type="Script" uid="uid://i6qynogtnedl" path="res://scripts/monster.gd" id="1_2g0a1"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_ohkdc"]
 radius = 16.0
 
-[node name="Monster" type="CharacterBody2D"]
+[node name="Monster" type="CharacterBody2D" unique_id=723051038]
 script = ExtResource("1_2g0a1")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1791651984]
 shape = SubResource("CircleShape2D_ohkdc")
 
-[node name="Body" type="Sprite2D" parent="."]
-texture = null
+[node name="Body" type="Sprite2D" parent="." unique_id=479924885]
 scale = Vector2(0.9, 0.9)

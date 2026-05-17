@@ -6,17 +6,31 @@
 # Editor / IDE
 .vscode/
 .idea/
+.cursor/
 # Logs / temp
 *.log
 .Rhistory
 # Env / secrets
 .env
 .env.*
+.venv_tools/
 # Local Godot study notes (machine-specific)
 GODOT_NOTES.local.md
+Godot Notes.local.md
+godot-notes.md
+godot_notes.md
 # Local coursework reference (not required to build or run)
 study/
 csresources-main/
+csresources-main.zip
+assignment proposal.md
+assignement proposal.md
+ideas.md
+# Local MCP installs / tools
+tools/
+addons/
+# README preview/import sidecars that Godot may generate for docs-only images/audio
+docs/screenshots/*.import
 # Desktop export output (presets only in repo)
 exports/
 build/

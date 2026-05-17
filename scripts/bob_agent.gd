@@ -353,10 +353,9 @@ func _choose_place_material_for(intent: String) -> String:
 	var order: Array[String]
 	match intent:
 		"climb":
-			# Cheap, plentiful materials first; reinforced stays for actual building.
 			order = ["dirt", "stone"]
 		_:
-			order = ["dirt", "stone", "reinforced"]
+			order = ["dirt", "stone"]
 	for k in order:
 		if int(inv.get(k, 0)) > 0:
 			return k
@@ -737,9 +736,6 @@ func _can_mine_target(origin: Vector2i, target: Vector2i) -> bool:
 		return false
 	if not _world_tiles.is_solid_cell(target):
 		return false
-	# Reinforced player-built walls are off-limits to B.O.B.
-	if _world_tiles.has_method("is_reinforced_cell") and _world_tiles.is_reinforced_cell(target):
-		return false
 	# Do not let B.O.B mine the base world bottom out entirely.
 	if target.y >= 34:
 		return false
@@ -810,9 +806,6 @@ func _can_mine_escape_target(origin: Vector2i, target: Vector2i) -> bool:
 	if dy > 0:
 		return false
 	if not _world_tiles.is_solid_cell(target):
-		return false
-	# Reinforced player-built walls are off-limits to B.O.B.
-	if _world_tiles.has_method("is_reinforced_cell") and _world_tiles.is_reinforced_cell(target):
 		return false
 	if target.y >= 34:
 		return false

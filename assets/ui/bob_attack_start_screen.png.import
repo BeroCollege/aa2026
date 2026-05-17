@@ -2,12 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ckou2dxrhv0af"
-valid=false
+uid="uid://bgg4utofhl7rb"
+path="res://.godot/imported/bob_attack_start_screen.png-f0bdb61d505f7076e081406b060a0416.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://assets/ui/bob_attack_start_screen.png"
+dest_files=["res://.godot/imported/bob_attack_start_screen.png-f0bdb61d505f7076e081406b060a0416.ctex"]
 
 [params]
 

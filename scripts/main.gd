@@ -42,8 +42,6 @@ var _heart_full: Texture2D = preload("res://assets/ui/heart_full_ui16.png")
 var _heart_empty: Texture2D = preload("res://assets/ui/heart_empty_ui16.png")
 var _hunger_full: Texture2D = preload("res://assets/ui/hunger_full_ui16.png")
 var _hunger_empty: Texture2D = preload("res://assets/ui/hunger_empty_ui16.png")
-var _debug_label: Label
-var _bob_debug_label: Label
 var _overhead_hud: Dictionary = {}
 var _background_root: Node2D
 var _farlands_layer: Node2D
@@ -57,11 +55,9 @@ var _survival_sec: float = 0.0
 var _survival_last_display_bucket: int = -1
 var _place_indicator: Label
 var _slot_dirt_label: Label
-var _slot_reinforced_label: Label
 var _slot_totems_label: Label
 var _craft_shovel_button: Button
 var _craft_totem_button: Button
-var _craft_reinforced_button: Button
 var _upgrade_pickaxe_button: Button
 var _upgrade_axe_button: Button
 var _upgrade_sword_button: Button
@@ -75,9 +71,10 @@ var _craft_menu_totem_label: Label
 var _craft_section_labels: Dictionary = {}
 const TREE_SCENE := preload("res://scenes/TreeNode.tscn")
 const BERRY_BUSH_SCENE := preload("res://scenes/BerryBush.tscn")
-const _CRAFT_FOOD_TEX: Texture2D = preload("res://assets/blockpack/resource_food.png")
+const _CRAFT_FOOD_TEX: Texture2D = preload("res://assets/food/berry_bush_ripe.png")
 const _CRAFT_WOOD_TEX: Texture2D = preload("res://assets/blockpack/resource_wood.png")
-const _CRAFT_TILE_STONE_TEX: Texture2D = preload("res://assets/blockpack/tile_stone.png")
+const _CRAFT_DIRT_TEX: Texture2D = preload("res://assets/tiles/dirt.png")
+const _CRAFT_TILE_STONE_TEX: Texture2D = preload("res://assets/tiles/stone.png")
 @export var decoration_stream_margin_tiles: int = 40
 @export var tree_spawn_interval_tiles: int = 12
 @export var tree_min_spacing_tiles: int = 8
@@ -124,12 +121,6 @@ func _process(delta: float) -> void:
 	if bucket != _survival_last_display_bucket:
 		_survival_last_display_bucket = bucket
 		_refresh_survival_clock_label()
-	if Input.is_action_just_pressed("toggle_debug_mode"):
-		_manager.debug_mode_enabled = not _manager.debug_mode_enabled
-		if _manager.debug_mode_enabled and _player and _player.has_method("apply_debug_default_tool"):
-			_player.apply_debug_default_tool()
-	_update_debug_label()
-	_update_bob_debug_label()
 	_update_status_icons()
 	_update_hotbar_counts()
 	_update_hotbar_selection()
@@ -194,10 +185,6 @@ func _ready() -> void:
 	_status_panel.visible = false
 	_create_overhead_status(_player, 6)
 	_create_overhead_status(_bob, 10)
-	_create_debug_label()
-	_update_debug_label()
-	_create_bob_debug_label()
-	_update_bob_debug_label()
 	_extend_material_counter_ui()
 	_extend_craft_menu_ui()
 	_apply_tool_strip_icons()
@@ -208,8 +195,6 @@ func _ready() -> void:
 	_pause_menu.resume_requested.connect(_close_pause_menu)
 	_pause_resume_button.pressed.connect(_close_pause_menu)
 	_pause_restart_button.pressed.connect(_on_restart_pressed)
-	if _manager.debug_mode_enabled and _player.has_method("apply_debug_default_tool"):
-		call_deferred("_deferred_debug_default_tool")
 	_reset_survival_timer()
 
 func _reset_survival_timer() -> void:
@@ -221,10 +206,6 @@ func _refresh_survival_clock_label() -> void:
 	if not _clock_label:
 		return
 	_clock_label.text = "Survived: %s" % _format_run_time(_survival_sec)
-
-func _deferred_debug_default_tool() -> void:
-	if _manager.debug_mode_enabled and _player.has_method("apply_debug_default_tool"):
-		_player.apply_debug_default_tool()
 
 func _apply_tool_strip_icons() -> void:
 	var hotbar := {
@@ -384,8 +365,8 @@ func _create_background_layers() -> void:
 func _spawn_farlands_background() -> void:
 	if not _world_tiles or not _farlands_layer:
 		return
-	var grass_tex: Texture2D = load("res://assets/blockpack/tile_grass.png")
-	var dirt_tex: Texture2D = load("res://assets/blockpack/tile_dirt.png")
+	var grass_tex: Texture2D = load("res://assets/tiles/grass_top.png")
+	var dirt_tex: Texture2D = load("res://assets/tiles/dirt.png")
 	if not grass_tex or not dirt_tex:
 		return
 	var rng := RandomNumberGenerator.new()
@@ -660,7 +641,6 @@ func _build_keybinds_help() -> String:
 		["Interact / gather", &"interact"],
 		["Craft menu (also F)", &"craft_tool"],
 		["Feed Bob", &"feed_bob"],
-		["Toggle debug", &"toggle_debug_mode"],
 		["Place block", &"place_block"],
 		["Mine / dig", &"mine_block"],
 		["Cycle place material", &"cycle_place_kind"],
@@ -727,22 +707,22 @@ func _refresh_craft_menu() -> void:
 		$CanvasLayer/CraftMenu/CraftSwordButton,
 		"Sword",
 		[["wood", wx.get_wood_cost_for_tool("sword")]],
-		"Own %d" % _manager.inventory["sword"],
-		_can_afford([["wood", wx.get_wood_cost_for_tool("sword")]])
+		"",
+		_can_craft_single_tool("sword")
 	)
 	_set_craft_button(
 		$CanvasLayer/CraftMenu/CraftToolButton,
 		"Pickaxe",
 		[["wood", wx.get_wood_cost_for_tool("pickaxe")]],
-		"Own %d" % _manager.inventory["pickaxe"],
-		_can_afford([["wood", wx.get_wood_cost_for_tool("pickaxe")]])
+		"",
+		_can_craft_single_tool("pickaxe")
 	)
 	_set_craft_button(
 		$CanvasLayer/CraftMenu/CraftAxeButton,
 		"Axe",
 		[["wood", wx.get_wood_cost_for_tool("axe")]],
-		"Own %d" % _manager.inventory["axe"],
-		_can_afford([["wood", wx.get_wood_cost_for_tool("axe")]])
+		"",
+		_can_craft_single_tool("axe")
 	)
 	_set_craft_button(
 		$CanvasLayer/CraftMenu/CraftMealButton,
@@ -756,18 +736,18 @@ func _refresh_craft_menu() -> void:
 			_craft_shovel_button,
 			"Shovel",
 			[["wood", wx.get_wood_cost_for_tool("shovel")]],
-			"Own %d" % _manager.inventory["shovel"],
-			_can_afford([["wood", wx.get_wood_cost_for_tool("shovel")]])
+			"",
+			_can_craft_single_tool("shovel")
 		)
 	_set_craft_button(
 		$CanvasLayer/CraftMenu/CraftHoeButton,
 		"Hoe",
 		[["wood", wx.get_wood_cost_for_tool("hoe")]],
-		"Own %d" % _manager.inventory["hoe"],
-		_can_afford([["wood", wx.get_wood_cost_for_tool("hoe")]])
+		"",
+		_can_craft_single_tool("hoe")
 	)
 	if _craft_totem_button:
-		_set_craft_button(_craft_totem_button, "Calm Totem", [["wood", 5], ["stone", 5]], "Own %d" % _manager.inventory["totems"], _can_afford([["wood", 5], ["stone", 5]]))
+		_set_craft_button(_craft_totem_button, "Calm Totem", [["wood", 5], ["stone", 5]], "", _can_afford([["wood", 5], ["stone", 5]]))
 	if _upgrade_pickaxe_button:
 		_set_upgrade_button(_upgrade_pickaxe_button, "Stone Pickaxe", "pickaxe")
 	if _upgrade_axe_button:
@@ -852,8 +832,6 @@ func _update_hotbar_counts() -> void:
 	_slot_food.text = str(_manager.inventory["food"])
 	if _slot_dirt_label:
 		_slot_dirt_label.text = str(_manager.inventory.get("dirt", 0))
-	if _slot_reinforced_label:
-		_slot_reinforced_label.text = str(_manager.inventory.get("reinforced", 0))
 	if _slot_totems_label:
 		_slot_totems_label.text = str(_manager.inventory.get("totems", 0))
 	if _place_indicator and _player and _player.has_method("get_place_kind"):
@@ -920,6 +898,7 @@ func _on_craft_snack_pressed() -> void:
 
 func _on_craft_meal_pressed() -> void:
 	if _manager.craft_cooked_meal():
+		GameSfx.play_ui(self, GameSfx.CONSUME, -4.0)
 		_craft_feedback.text = "Cooked Meal used. Hunger restored."
 	else:
 		_craft_feedback.text = "Need: 3 food + 1 wood"
@@ -971,16 +950,9 @@ func _on_upgrade_shovel_pressed() -> void:
 
 func _on_craft_totem_pressed() -> void:
 	if _manager.craft_calm_totem():
-		_craft_feedback.text = "Crafted Calm Totem. (Cost: 5 wood, 5 stone) Press T to place."
+		_craft_feedback.text = "Crafted Calm Totem. (Cost: 5 wood, 5 stone) Press T to place for 60s."
 	else:
 		_craft_feedback.text = "Need: 5 wood + 5 stone"
-	_refresh_craft_menu()
-
-func _on_craft_reinforced_pressed() -> void:
-	if _manager.craft_reinforced_block():
-		_craft_feedback.text = "Crafted 4x Reinforced Block. (Cost: 2 wood, 4 stone)"
-	else:
-		_craft_feedback.text = "Need: 2 wood + 4 stone"
 	_refresh_craft_menu()
 
 func _extend_material_counter_ui() -> void:
@@ -1040,17 +1012,14 @@ func _extend_material_counter_ui() -> void:
 	vb.add_child(row1)
 
 	_slot_wood = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_wood.png"))
-	_slot_stone = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_stone.png"))
-	_slot_food = _make_inventory_chip(row1, preload("res://assets/blockpack/resource_food.png"))
+	_slot_stone = _make_inventory_chip(row1, _CRAFT_TILE_STONE_TEX)
+	_slot_food = _make_inventory_chip(row1, _CRAFT_FOOD_TEX)
 
 	var row2 := HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 8)
 	vb.add_child(row2)
 
-	_slot_dirt_label = _make_inventory_chip(row2, preload("res://assets/blockpack/tile_dirt.png"))
-	_slot_reinforced_label = _make_inventory_chip(
-		row2, preload("res://assets/blockpack/tile_stone.png"), Color(0.72, 0.78, 1.0)
-	)
+	_slot_dirt_label = _make_inventory_chip(row2, _CRAFT_DIRT_TEX)
 	_slot_totems_label = _make_inventory_chip(row2, preload("res://assets/blockpack/door_closed.png"))
 
 
@@ -1150,13 +1119,6 @@ func _extend_craft_menu_ui() -> void:
 	_craft_totem_button = _add_craft_button("CraftTotemButton", "Calm Totem", 354.0, 396.0, 302.0)
 	_craft_totem_button.pressed.connect(_on_craft_totem_pressed)
 	_add_craft_row_icon_for_button(_craft_totem_button, _CRAFT_WOOD_TEX, Color(0.52, 0.82, 1.0, 1.0))
-	_craft_reinforced_button = _add_craft_button("CraftReinforcedButton", "Reinforced x4", 354.0, 348.0, 302.0)
-	_craft_reinforced_button.pressed.connect(_on_craft_reinforced_pressed)
-	_add_craft_row_icon_for_button(_craft_reinforced_button, _CRAFT_TILE_STONE_TEX)
-	_craft_reinforced_button.visible = false
-	var reinforced_icon := get_node_or_null("CanvasLayer/CraftMenu/CraftReinforcedIcon") as TextureRect
-	if reinforced_icon:
-		reinforced_icon.visible = false
 	_upgrade_sword_button = _add_craft_button("UpgradeSwordButton", "Stone Sword", 354.0, 128.0, 302.0)
 	_upgrade_sword_button.pressed.connect(_on_upgrade_sword_pressed)
 	_add_craft_row_icon_for_button(_upgrade_sword_button, ToolStripIcons.atlas_texture_for_tool("sword"))
@@ -1209,9 +1171,9 @@ func _configure_craft_panel_shell() -> void:
 
 func _create_craft_inventory_strip() -> void:
 	_craft_menu_wood_label = _make_craft_menu_chip("CraftWoodChip", 18.0, 52.0, _CRAFT_WOOD_TEX)
-	_craft_menu_stone_label = _make_craft_menu_chip("CraftStoneChip", 126.0, 52.0, preload("res://assets/blockpack/resource_stone.png"))
+	_craft_menu_stone_label = _make_craft_menu_chip("CraftStoneChip", 126.0, 52.0, _CRAFT_TILE_STONE_TEX)
 	_craft_menu_food_label = _make_craft_menu_chip("CraftFoodChip", 234.0, 52.0, _CRAFT_FOOD_TEX)
-	_craft_menu_dirt_label = _make_craft_menu_chip("CraftDirtChip", 354.0, 52.0, preload("res://assets/blockpack/tile_dirt.png"))
+	_craft_menu_dirt_label = _make_craft_menu_chip("CraftDirtChip", 354.0, 52.0, _CRAFT_DIRT_TEX)
 	_craft_menu_totem_label = _make_craft_menu_chip("CraftTotemChip", 462.0, 52.0, preload("res://assets/blockpack/door_closed.png"), Color(0.52, 0.82, 1.0, 1.0))
 
 
@@ -1317,6 +1279,13 @@ func _set_upgrade_button(btn: Button, label: String, tool: String) -> void:
 	_set_craft_button(btn, label, cost, status, ready)
 
 
+func _can_craft_single_tool(tool: String) -> bool:
+	var wx: GameManager = _manager as GameManager
+	if int(_manager.inventory.get(tool, 0)) >= 1:
+		return false
+	return _can_afford([["wood", wx.get_wood_cost_for_tool(tool)]])
+
+
 func _upgrade_cost_items(tool: String) -> Array:
 	if not GameManager.TOOL_UPGRADE_COST.has(tool):
 		return []
@@ -1328,7 +1297,7 @@ func _set_craft_button(btn: Button, label: String, cost: Array, status: String, 
 	if not btn:
 		return
 	btn.text = ""
-	btn.disabled = not can_use and not _manager.debug_mode_enabled
+	btn.disabled = not can_use
 	_style_craft_button(btn)
 	_update_button_slot_content(btn, label, status, cost)
 
@@ -1338,7 +1307,7 @@ func _update_button_slot_content(btn: Button, label: String, status: String, cos
 		var old := btn.get_node_or_null(node_name)
 		if old:
 			old.free()
-	var disabled_text: bool = btn.disabled and not _manager.debug_mode_enabled
+	var disabled_text: bool = btn.disabled
 	var name_label := Label.new()
 	name_label.name = "SlotName"
 	name_label.text = label
@@ -1353,27 +1322,28 @@ func _update_button_slot_content(btn: Button, label: String, status: String, cos
 	name_label.add_theme_color_override("font_color", Color(0.55, 0.57, 0.62, 0.95) if disabled_text else Color(0.94, 0.96, 1.0, 1.0))
 	btn.add_child(name_label)
 
-	var status_label := Label.new()
-	status_label.name = "SlotStatus"
-	status_label.text = status
-	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	status_label.offset_left = 116.0
-	status_label.offset_top = 9.0
-	status_label.offset_right = 172.0
-	status_label.offset_bottom = 30.0
-	status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_apply_mc_font(status_label, 8)
-	_apply_mc_label_outline(status_label)
-	var status_color := Color(0.9, 0.92, 0.98, 1.0)
-	if status == "Ready":
-		status_color = Color(0.72, 1.0, 0.72, 1.0)
-	elif status == "Need":
-		status_color = Color(0.84, 0.64, 0.64, 1.0)
-	elif status == "Done":
-		status_color = Color(0.9, 0.84, 0.52, 1.0)
-	status_label.add_theme_color_override("font_color", Color(0.5, 0.52, 0.58, 0.9) if disabled_text else status_color)
-	btn.add_child(status_label)
+	if not status.is_empty():
+		var status_label := Label.new()
+		status_label.name = "SlotStatus"
+		status_label.text = status
+		status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		status_label.offset_left = 116.0
+		status_label.offset_top = 9.0
+		status_label.offset_right = 172.0
+		status_label.offset_bottom = 30.0
+		status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_apply_mc_font(status_label, 8)
+		_apply_mc_label_outline(status_label)
+		var status_color := Color(0.9, 0.92, 0.98, 1.0)
+		if status == "Ready":
+			status_color = Color(0.72, 1.0, 0.72, 1.0)
+		elif status == "Need":
+			status_color = Color(0.84, 0.64, 0.64, 1.0)
+		elif status == "Done":
+			status_color = Color(0.9, 0.84, 0.52, 1.0)
+		status_label.add_theme_color_override("font_color", Color(0.5, 0.52, 0.58, 0.9) if disabled_text else status_color)
+		btn.add_child(status_label)
 
 	var row := HBoxContainer.new()
 	row.name = "CostIcons"
@@ -1410,7 +1380,7 @@ func _craft_cost_texture(kind: String) -> Texture2D:
 		"wood":
 			return _CRAFT_WOOD_TEX
 		"stone":
-			return preload("res://assets/blockpack/resource_stone.png")
+			return _CRAFT_TILE_STONE_TEX
 		"food":
 			return _CRAFT_FOOD_TEX
 		_:
@@ -1418,8 +1388,6 @@ func _craft_cost_texture(kind: String) -> Texture2D:
 
 
 func _can_afford(costs: Array) -> bool:
-	if _manager.debug_mode_enabled:
-		return true
 	for entry in costs:
 		if int(_manager.inventory.get(String(entry[0]), 0)) < int(entry[1]):
 			return false
@@ -1478,53 +1446,3 @@ func _craft_menu_style() -> StyleBoxFlat:
 	s.content_margin_right = 10.0
 	s.content_margin_bottom = 10.0
 	return s
-
-func _create_debug_label() -> void:
-	_debug_label = Label.new()
-	_debug_label.position = Vector2(960, 16)
-	_debug_label.size = Vector2(300, 28)
-	_debug_label.add_theme_font_size_override("font_size", 16)
-	_debug_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.65, 1.0))
-	$CanvasLayer.add_child(_debug_label)
-
-func _create_bob_debug_label() -> void:
-	_bob_debug_label = Label.new()
-	_bob_debug_label.position = Vector2(16, 16)
-	_bob_debug_label.size = Vector2(560, 72)
-	_bob_debug_label.add_theme_font_size_override("font_size", 15)
-	_bob_debug_label.add_theme_color_override("font_color", Color(0.95, 0.96, 1.0, 1.0))
-	_bob_debug_label.add_theme_color_override("font_outline_color", Color(0.08, 0.10, 0.14, 0.92))
-	_bob_debug_label.add_theme_constant_override("outline_size", 4)
-	$CanvasLayer.add_child(_bob_debug_label)
-
-func _update_debug_label() -> void:
-	if not _debug_label:
-		return
-	var state := "ON" if _manager.debug_mode_enabled else "OFF"
-	_debug_label.text = "Debug %s (Toggle: I)" % state
-
-func _update_bob_debug_label() -> void:
-	if not _bob_debug_label or not _manager:
-		return
-	var debug_on: bool = bool(_manager.debug_mode_enabled)
-	_bob_debug_label.visible = debug_on
-	if not debug_on or not _bob:
-		return
-	if _bob.has_method("get_life_debug_snapshot"):
-		var snap: Dictionary = _bob.get_life_debug_snapshot()
-		_bob_debug_label.text = "B.O.B.  HP: %.0f  Hunger: %.0f  Safety: %.0f  Curiosity: %.0f  Energy: %.0f  Trust: %.0f  Love: %.0f  State: %s" % [
-			float(snap.get("health", 100.0)),
-			float(snap.get("hunger", 0.0)),
-			float(snap.get("safety", 0.0)),
-			float(snap.get("curiosity", 0.0)),
-			float(snap.get("energy", 0.0)),
-			float(snap.get("trust", 0.0)),
-			float(snap.get("affection", 0.0)),
-			str(snap.get("state", "UNKNOWN")),
-		]
-		return
-	var bob_health := float(_bob.get("health")) if _bob.get("health") != null else 100.0
-	var bob_hunger := float(_bob.get("hunger")) if _bob.get("hunger") != null else 0.0
-	var bob_safety := float(_bob.get("safety")) if _bob.get("safety") != null else 0.0
-	var bob_curiosity := float(_bob.get("curiosity")) if _bob.get("curiosity") != null else 0.0
-	_bob_debug_label.text = "B.O.B.  HP: %.0f  Hunger: %.0f  Safety: %.0f  Curiosity: %.0f" % [bob_health, bob_hunger, bob_safety, bob_curiosity]

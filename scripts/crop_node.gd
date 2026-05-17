@@ -20,13 +20,12 @@ func _process(delta: float) -> void:
 
 func harvest(with_hoe: bool = false) -> Dictionary:
 	if not _ready_to_harvest:
-		return {"food": 0, "seeds": 0}
+		return {"food": 0}
 	_ready_to_harvest = false
 	_timer = regrow_seconds
 	_update_visual()
 	var food_gain := yield_amount + (1 if with_hoe else 0)
-	var seed_gain := 2 if with_hoe else 1
-	return {"food": food_gain, "seeds": seed_gain}
+	return {"food": food_gain}
 
 func _update_visual() -> void:
 	var sprite := $Sprite as Sprite2D

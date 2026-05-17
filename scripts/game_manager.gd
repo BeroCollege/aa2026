@@ -4,7 +4,6 @@ class_name GameManager
 @export var day_length_seconds: float = 45.0
 @export var sabotage_cooldown_seconds: float = 6.0
 @export var enable_night_cycle: bool = false
-@export var debug_mode_enabled: bool = false
 @export var player_max_health: float = 100.0
 @export var player_max_hunger: float = 100.0
 @export var full_hunger_heal_tick_seconds: float = 2.5
@@ -48,9 +47,7 @@ var inventory := {
 	"wood": 0,
 	"stone": 0,
 	"food": 0,
-	"seeds": 0,
 	"dirt": 0,
-	"reinforced": 0,
 	"totems": 0,
 	"pickaxe": 0,
 	"axe": 0,
@@ -81,7 +78,6 @@ func _process(delta: float) -> void:
 		is_night = false
 
 	_update_player_survival(delta)
-	_apply_debug_inventory()
 
 func collect_for_player(amount: int = 1) -> void:
 	collect_for_player_resource("wood", amount)
@@ -144,75 +140,64 @@ func get_upgrade_cost_line(tool: String) -> String:
 	return "%d Wood + %d Stone" % [int(c.get("wood", 0)), int(c.get("stone", 0))]
 
 func craft_tool() -> bool:
-	if debug_mode_enabled:
-		inventory["pickaxe"] += 1
-		player_resources = _resource_score()
-		return true
+	if _owns_tool("pickaxe"):
+		return false
 	var cost: int = int(TOOL_WOOD_ONLY_COST["pickaxe"])
 	if inventory["wood"] < cost:
 		return false
 	inventory["wood"] -= cost
-	inventory["pickaxe"] += 1
+	inventory["pickaxe"] = 1
 	player_resources = _resource_score()
 	return true
 
 func craft_axe() -> bool:
-	if debug_mode_enabled:
-		inventory["axe"] += 1
-		player_resources = _resource_score()
-		return true
+	if _owns_tool("axe"):
+		return false
 	var cost: int = int(TOOL_WOOD_ONLY_COST["axe"])
 	if inventory["wood"] < cost:
 		return false
 	inventory["wood"] -= cost
-	inventory["axe"] += 1
+	inventory["axe"] = 1
 	player_resources = _resource_score()
 	return true
 
 func craft_sword() -> bool:
-	if debug_mode_enabled:
-		inventory["sword"] += 1
-		player_resources = _resource_score()
-		return true
+	if _owns_tool("sword"):
+		return false
 	var cost: int = int(TOOL_WOOD_ONLY_COST["sword"])
 	if inventory["wood"] < cost:
 		return false
 	inventory["wood"] -= cost
-	inventory["sword"] += 1
+	inventory["sword"] = 1
 	player_resources = _resource_score()
 	return true
 
 func craft_hoe() -> bool:
-	if debug_mode_enabled:
-		inventory["hoe"] += 1
-		player_resources = _resource_score()
-		return true
+	if _owns_tool("hoe"):
+		return false
 	var cost: int = int(TOOL_WOOD_ONLY_COST["hoe"])
 	if inventory["wood"] < cost:
 		return false
 	inventory["wood"] -= cost
-	inventory["hoe"] += 1
+	inventory["hoe"] = 1
 	player_resources = _resource_score()
 	return true
 
 func craft_shovel() -> bool:
-	if debug_mode_enabled:
-		inventory["shovel"] += 1
-		player_resources = _resource_score()
-		return true
+	if _owns_tool("shovel"):
+		return false
 	var cost: int = int(TOOL_WOOD_ONLY_COST["shovel"])
 	if inventory["wood"] < cost:
 		return false
 	inventory["wood"] -= cost
-	inventory["shovel"] += 1
+	inventory["shovel"] = 1
 	player_resources = _resource_score()
 	return true
 
+func _owns_tool(tool: String) -> bool:
+	return int(inventory.get(tool, 0)) >= 1
+
 func upgrade_tool(tool: String) -> bool:
-	if debug_mode_enabled:
-		tool_tiers[tool] = 1
-		player_resources = _resource_score()
-		return true
 	if not TOOL_UPGRADE_COST.has(tool):
 		return false
 	if int(inventory.get(tool, 0)) < 1:
@@ -231,10 +216,6 @@ func upgrade_tool(tool: String) -> bool:
 	return true
 
 func craft_calm_totem() -> bool:
-	if debug_mode_enabled:
-		inventory["totems"] += 1
-		player_resources = _resource_score()
-		return true
 	if inventory["wood"] < 5 or inventory["stone"] < 5:
 		return false
 	inventory["wood"] -= 5
@@ -243,24 +224,7 @@ func craft_calm_totem() -> bool:
 	player_resources = _resource_score()
 	return true
 
-func craft_reinforced_block(amount: int = 4) -> bool:
-	if debug_mode_enabled:
-		inventory["reinforced"] += amount
-		player_resources = _resource_score()
-		return true
-	if inventory["wood"] < 2 or inventory["stone"] < 4:
-		return false
-	inventory["wood"] -= 2
-	inventory["stone"] -= 4
-	inventory["reinforced"] += amount
-	player_resources = _resource_score()
-	return true
-
 func craft_bob_snack() -> bool:
-	if debug_mode_enabled:
-		inventory["bob_snacks"] += 1
-		player_resources = _resource_score()
-		return true
 	if inventory["food"] < 2 or inventory["wood"] < 1:
 		return false
 	inventory["food"] -= 2
@@ -270,9 +234,6 @@ func craft_bob_snack() -> bool:
 	return true
 
 func craft_cooked_meal() -> bool:
-	if debug_mode_enabled:
-		player_hunger = minf(player_max_hunger, player_hunger + 26.0)
-		return true
 	if inventory["food"] < 3 or inventory["wood"] < 1:
 		return false
 	inventory["food"] -= 3
@@ -282,8 +243,6 @@ func craft_cooked_meal() -> bool:
 	return true
 
 func take_player_food(amount: int = 1) -> int:
-	if debug_mode_enabled:
-		return amount
 	var available: int = inventory["food"]
 	if available <= 0:
 		return 0
@@ -293,8 +252,6 @@ func take_player_food(amount: int = 1) -> int:
 	return taken
 
 func take_bob_snack(amount: int = 1) -> int:
-	if debug_mode_enabled:
-		return amount
 	var available: int = inventory["bob_snacks"]
 	if available <= 0:
 		return 0
@@ -358,30 +315,8 @@ func _remove_random_player_resources(count: int) -> void:
 
 func _resource_score() -> int:
 	return (
-		inventory["wood"] + inventory["stone"] + inventory["food"] + inventory["seeds"]
-		+ inventory["dirt"] + inventory["reinforced"] * 2 + inventory["totems"] * 5
+		inventory["wood"] + inventory["stone"] + inventory["food"]
+		+ inventory["dirt"] + inventory["totems"] * 5
 		+ inventory["pickaxe"] * 2 + inventory["axe"] * 2 + inventory["sword"] * 2
 		+ inventory["hoe"] * 2 + inventory["shovel"] * 2
 	)
-
-func _apply_debug_inventory() -> void:
-	if not debug_mode_enabled:
-		return
-	var baseline := {
-		"wood": 999,
-		"stone": 999,
-		"food": 999,
-		"seeds": 999,
-		"dirt": 999,
-		"reinforced": 999,
-		"totems": 9,
-		"pickaxe": 1,
-		"axe": 1,
-		"sword": 1,
-		"hoe": 1,
-		"shovel": 1,
-		"bob_snacks": 999,
-	}
-	for key in baseline.keys():
-		inventory[key] = maxi(int(inventory.get(key, 0)), int(baseline[key]))
-	player_resources = _resource_score()

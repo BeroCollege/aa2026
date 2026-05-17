@@ -12,8 +12,8 @@
 [ext_resource type="Script" path="res://scripts/night_spawner.gd" id="9_smtjd"]
 [ext_resource type="PackedScene" path="res://scenes/CropNode.tscn" id="10_v1n3a"]
 [ext_resource type="Texture2D" path="res://assets/blockpack/resource_wood.png" id="11_woodi"]
-[ext_resource type="Texture2D" path="res://assets/blockpack/resource_stone.png" id="12_stonei"]
-[ext_resource type="Texture2D" path="res://assets/blockpack/resource_food.png" id="13_foodi"]
+[ext_resource type="Texture2D" path="res://assets/tiles/stone.png" id="12_stonei"]
+[ext_resource type="Texture2D" path="res://assets/food/berry_bush_ripe.png" id="13_foodi"]
 [ext_resource type="Texture2D" path="res://assets/blockpack/chest_full.png" id="14_picki"]
 [ext_resource type="Texture2D" path="res://assets/blockpack/tool_model.png" id="15_axei"]
 [ext_resource type="Texture2D" path="res://assets/blockpack/character_wizard.png" id="16_swordi"]
@@ -725,29 +725,6 @@ grow_vertical = 2
 texture = ExtResource("15_axei")
 expand_mode = 1
 stretch_mode = 5
-
-[node name="SlotSeeds" type="Panel" parent="CanvasLayer/Hotbar"]
-visible = false
-offset_left = 722.0
-offset_top = 8.0
-offset_right = 818.0
-offset_bottom = 58.0
-
-[node name="Icon" type="TextureRect" parent="CanvasLayer/Hotbar/SlotSeeds"]
-offset_left = 6.0
-offset_top = 6.0
-offset_right = 42.0
-offset_bottom = 42.0
-texture = ExtResource("13_foodi")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Count" type="Label" parent="CanvasLayer/Hotbar/SlotSeeds"]
-offset_left = 50.0
-offset_top = 14.0
-offset_right = 92.0
-offset_bottom = 38.0
-text = "0"
 
 [node name="MaterialCounter" type="Panel" parent="CanvasLayer"]
 offset_left = 16.0

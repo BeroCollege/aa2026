@@ -28,17 +28,16 @@ func _apply_texture() -> void:
 	var sprite := $Sprite as Sprite2D
 	if not sprite:
 		return
-	var base := "res://assets/blockpack/"
 	sprite.scale = Vector2.ONE
 	match resource_kind:
 		"wood":
-			sprite.texture = load(base + "tile_dirt.png")
+			sprite.texture = load("res://assets/blockpack/resource_wood.png")
 		"stone":
-			sprite.texture = load(base + "tile_stone.png")
+			sprite.texture = load("res://assets/tiles/stone.png")
 		"food":
-			sprite.texture = load(base + "tile_grass.png")
+			sprite.texture = load("res://assets/food/berry_bush_ripe.png")
 		_:
-			sprite.texture = load(base + "tile_dirt.png")
+			sprite.texture = load("res://assets/tiles/dirt.png")
 
 func _play_hit_feedback() -> void:
 	var sprite := $Sprite as Sprite2D

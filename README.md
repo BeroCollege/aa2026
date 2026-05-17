@@ -76,7 +76,7 @@ Volume, fullscreen, and vsync persist via `RunRecords` / `scripts/start_screen.g
 
 ## Player and world
 
-The player (`scripts/player.gd`) moves on a tilemap with gravity, mines blocks under the cursor (tool-dependent), places dirt/stone/reinforced blocks, farms with the hoe, and fights with melee tools. `WorldTilemap` handles streaming, mining damage, drops, and placement rules. `GameManager` tracks inventory, hunger, crafting costs, and run records.
+The player (`scripts/player.gd`) moves on a tilemap with gravity, mines blocks under the cursor (tool-dependent), places dirt/stone blocks, farms with the hoe, and fights with melee tools. `WorldTilemap` handles streaming, mining damage, drops, and placement rules. `GameManager` tracks inventory, hunger, crafting costs, and run records.
 
 ## B.O.B. (autonomous agent)
 
@@ -111,7 +111,6 @@ Short SFX under `assets/audio/sfx/` play through `GameSfx` (`scripts/game_sfx.gd
 | Craft menu | **C** or **F** |
 | Craft shovel (menu open) | **6** |
 | Pause | **Escape** (closes craft first if open) |
-| Debug overlay | **I** |
 
 Full detail matches `project.godot` input map and `scripts/start_screen.gd` settings labels.
 
@@ -124,24 +123,21 @@ Full detail matches `project.godot` input map and `scripts/start_screen.gd` sett
 | `scripts/player.gd`, `scripts/main.gd`, `scripts/game_manager.gd` | Self-written |
 | `scripts/bob_agent.gd` | Self-written (FSM + needs autonomous agent) |
 | `scripts/world_tilemap.gd`, `scripts/run_records.gd` | Self-written |
-| `assets/kenney/block-pack/` | [Kenney Block Pack](https://kenney.nl/assets/block-pack) — CC0 |
-| `assets/blockpack/` | Kenney-derived / in-project tile and prop art |
-| `assets/kaykit/` | KayKit character textures (see `assets/kaykit/`) |
-| `assets/tiny16/` | Tiny 16-style sprite sheets used for actors |
-| `assets/characters/player_new.png`, `bob_new.png` | Project character art |
+| `assets/tiles/`, `assets/blockpack/`, `assets/decor/`, `assets/food/` | Project-owned tile, block, prop, tree, and food art; AI-generated and then selected/edited for this game |
+| `assets/characters/player_new.png`, `assets/characters/bob_new.png` | Project-owned AI-generated character art for the player and B.O.B. |
+| `assets/tools/tool_strip.png` | Project-owned tool icon strip used by the HUD and crafting menu |
 | `assets/fonts/PressStart2P-Regular.ttf` | [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) — SIL Open Font License |
-| `assets/ui/bob_attack_start_screen.png` | Project UI |
-| `assets/audio/sfx/*.wav` | Procedural placeholders generated for this submission (CC0-style, documented here) |
-| `study/`, `csresources-main/` | Local coursework reference only (gitignored, not required to run) |
+| `assets/ui/bob_attack_start_screen.png`, `assets/ui/*_ui16.png` | Project-owned UI/start-screen art and HUD icons |
+| `assets/audio/sfx/*.wav` | Procedural sound effects generated locally for this submission |
 
 ---
 
 # References
 
 - Godot 4.6 documentation: https://docs.godotengine.org/
-- Kenney — Block Pack (CC0): https://kenney.nl/assets/block-pack
 - Course assignment README template: https://github.com/skooter500/csresources/blob/main/assignment/README.md
 - Press Start 2P font: https://fonts.google.com/specimen/Press+Start+2P
+- Project art assets in `assets/tiles/`, `assets/blockpack/`, `assets/characters/`, `assets/decor/`, `assets/food/`, `assets/tools/`, and `assets/ui/`: AI-generated/project-created assets used only for this coursework prototype
 - Procedural SFX in `assets/audio/sfx/`: short tones/noise generated locally for royalty-free use in this prototype
 
 ---

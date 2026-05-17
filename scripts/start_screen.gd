@@ -48,7 +48,6 @@ const _ACTION_LABELS: Array = [
 	["mine_block", "Mine / break"],
 	["cycle_place_kind", "Cycle place material"],
 	["place_totem", "Place calm totem"],
-	["toggle_debug_mode", "Toggle debug overlay"],
 ]
 
 
